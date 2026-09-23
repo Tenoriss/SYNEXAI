@@ -1,0 +1,193 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* Dark mode is driven by a `.dark` class on <html> (see useTheme). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/* Design tokens — see Design.md. All UI colours come from these.     */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: #f7f8fc;
+  --surface: #ffffff;
+  --surface-muted: #f1f3f9;
+
+  --primary: #5b5ce2;
+  --primary-hover: #4d4ed0;
+  --primary-soft: #eef0ff;
+  --on-primary: #ffffff;
+
+  --secondary: #7c3aed;
+  --secondary-soft: #f3e8ff;
+
+  --text-primary: #171923;
+  --text-secondary: #5f6472;
+  --text-muted: #8b91a1;
+
+  --border: #e4e7ef;
+  --border-strong: #d4d8e3;
+
+  --success: #16a34a;
+  --success-soft: #eaf8ef;
+  --warning: #d97706;
+  --warning-soft: #fff4e5;
+  --error: #dc2626;
+  --error-soft: #fdecec;
+  --info: #2563eb;
+  --info-soft: #eaf2ff;
+
+  /* PIECES identities (always paired with icon + label). */
+  --pieces-performance: #2563eb;
+  --pieces-information: #4f46e5;
+  --pieces-economy: #16a34a;
+  --pieces-control: #ea580c;
+  --pieces-efficiency: #9333ea;
+  --pieces-service: #0d9488;
+
+  --shadow-color: 23 25 35;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #0d0f14;
+  --surface: #151821;
+  --surface-muted: #1c202b;
+
+  --primary: #7778f2;
+  --primary-hover: #8b8cf5;
+  --primary-soft: #25274a;
+  --on-primary: #ffffff;
+
+  --secondary: #a78bfa;
+  --secondary-soft: #2a2145;
+
+  --text-primary: #f5f7fa;
+  --text-secondary: #aeb4c2;
+  --text-muted: #777e8e;
+
+  --border: #292e3a;
+  --border-strong: #363c4a;
+
+  --success: #4ade80;
+  --success-soft: #13291c;
+  --warning: #fbbf24;
+  --warning-soft: #2e2310;
+  --error: #f87171;
+  --error-soft: #321717;
+  --info: #60a5fa;
+  --info-soft: #14233d;
+
+  --pieces-performance: #60a5fa;
+  --pieces-information: #818cf8;
+  --pieces-economy: #4ade80;
+  --pieces-control: #fb923c;
+  --pieces-efficiency: #c084fc;
+  --pieces-service: #2dd4bf;
+
+  --shadow-color: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-secondary: var(--secondary);
+  --color-secondary-soft: var(--secondary-soft);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-pieces-performance: var(--pieces-performance);
+  --color-pieces-information: var(--pieces-information);
+  --color-pieces-economy: var(--pieces-economy);
+  --color-pieces-control: var(--pieces-control);
+  --color-pieces-efficiency: var(--pieces-efficiency);
+  --color-pieces-service: var(--pieces-service);
+
+  /* Typography scale (size / line-height / weight) */
+  --text-display: 56px;
+  --text-display--line-height: 64px;
+  --text-display--font-weight: 700;
+  --text-h1: 40px;
+  --text-h1--line-height: 48px;
+  --text-h1--font-weight: 700;
+  --text-h2: 32px;
+  --text-h2--line-height: 40px;
+  --text-h2--font-weight: 700;
+  --text-h3: 24px;
+  --text-h3--line-height: 32px;
+  --text-h3--font-weight: 600;
+  --text-h4: 20px;
+  --text-h4--line-height: 28px;
+  --text-h4--font-weight: 600;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-small: 14px;
+  --text-small--line-height: 20px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 500;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-control: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Subtle elevation only */
+  --shadow-xs: 0 1px 2px rgb(var(--shadow-color) / 0.04);
+  --shadow-sm: 0 1px 3px rgb(var(--shadow-color) / 0.06), 0 1px 2px rgb(var(--shadow-color) / 0.04);
+  --shadow-md: 0 8px 24px -6px rgb(var(--shadow-color) / 0.12);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  html {
+    @apply bg-background text-fg font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  body {
+    @apply min-h-dvh text-body;
+  }
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--text-primary);
+  }
+  /* Visible, consistent keyboard focus everywhere. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

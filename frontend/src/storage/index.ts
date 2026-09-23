@@ -1,0 +1,6 @@
+export { StorageService, storageService } from './StorageService'
+export type { StorageChange, StorageStats } from './StorageService'
+export { MemoryDriver, LocalStorageDriver, StorageQuotaError } from './driver'
+export type { KeyValueDriver } from './driver'
+export { STORAGE_KEYS, STORAGE_PREFIX } from './keys'
+export * from './repositories/types'
