@@ -4,8 +4,9 @@
 and improve *any* information system (academic, inventory, hospital, e-commerce, banking, …) using
 structured methodology (PIECES, requirements, process analysis, diagrams) with AI as the analysis engine.
 
-> **Status:** Phase 1 — Foundation. Project structure, backend API with health check, frontend shell,
-> design system and the LocalStorage persistence layer are in place. AI analysis arrives in Phase 4.
+> **Status:** Phase 2 — Project management. Projects can be created, searched, filtered, edited, archived
+> and deleted, and they persist in LocalStorage across reloads. The backend still serves health only;
+> Gemini analysis arrives in Phase 4 and PIECES/requirements/diagrams in later phases.
 
 ## Architecture
 
@@ -54,8 +55,8 @@ Vite proxies `/api` to `http://127.0.0.1:8000`. Override with `API_PROXY_TARGET=
 ## Tests
 
 ```bash
-cd backend && ./venv/bin/python -m pytest      # API tests
-cd frontend && npm test                         # storage layer tests
+cd backend && ./venv/bin/python -m pytest      # API tests (9)
+cd frontend && npm test                         # storage + project logic tests (54)
 cd frontend && npm run build                    # type-check + production build
 ```
 
@@ -70,6 +71,36 @@ cd frontend && npm run build                    # type-check + production build
 | `APP_ENV`        | `development`                                   | `production` disables `/api/docs`         |
 
 `backend/.env` is git-ignored. Only `backend/.env.example` is committed.
+
+## Project management (Phase 2)
+
+| Route                 | Screen                                                              |
+| --------------------- | ------------------------------------------------------------------- |
+| `/`                   | Dashboard — counts and recent projects read from real stored data  |
+| `/projects`           | Project list: search, status filter, sort, row actions              |
+| `/projects/new`       | Create Project form                                                 |
+| `/projects/:projectId` | Project overview: metadata, status, archive/duplicate/delete, module placeholders |
+
+Layering (no component touches `localStorage` directly):
+
+```text
+UI (pages, components/projects)
+  → hooks/useProjects.ts            list, single project, all mutations + notifications
+    → features/projects/*           pure validation, search/filter/sort/counts
+      → StorageService              cross-entity rules, change events, quota/corruption handling
+        → LocalStorageProjectRepository   CRUD + archive/restore/duplicate, schema migration
+          → LocalStorageDriver            synex_projects
+```
+
+- `Project`: `id`, `name`, `description`, `systemType`, `organization`, `analyst`, `status`, `createdAt`, `updatedAt`.
+  Statuses: `Draft · Analyzing · Completed · Needs Review · Archived`. Only the user sets a status — nothing is
+  ever auto-marked Completed.
+- Required fields (`name`, `description`, `systemType`) are validated inline in the form **and** re-checked in the
+  repository. `createdAt` and `id` survive edits; `updatedAt` moves.
+- Delete always asks first, and cascades to that project's analysis versions. Archive is a status change only —
+  the record and its history stay stored and remain reachable through the *Archived* filter.
+- Empty, loading, error, corrupted-data and "Project not found" states are all real UI states; no demo projects,
+  scores or progress percentages exist anywhere.
 
 ## Project structure
 
@@ -87,9 +118,10 @@ frontend/
   src/
     app/               App, router, theme provider, error boundary
     layouts/           AppLayout (sidebar + header + content)
-    components/        ui/ primitives, layout/ (Sidebar, Header)
-    pages/             Dashboard, Settings, placeholders for later phases
-    hooks/             useStorageQuery, useBackendHealth, useTheme, …
+    components/        ui/ primitives, layout/ (Sidebar, Header), projects/ (form, table, cards, dialogs)
+    pages/             Dashboard, Settings, projects/ (list, new, overview), placeholders for later phases
+    features/          projects/ — pure validation, search/filter/sort logic
+    hooks/             useStorageQuery, useProjects, useProject, useBreadcrumb, useBackendHealth, useTheme, …
     services/          ApiService
     storage/           StorageService, driver, versioned collections, repositories
     types/ utils/ data/ styles/
@@ -103,8 +135,13 @@ envelope `{ schemaVersion, updatedAt, data }`. Invalid records are skipped, unre
 `synex_corrupt_*` (never silently deleted), and data from a newer schema is never overwritten.
 **Settings → Local data → Reset data** removes every `synex_*` key.
 
+Current schema version: **2**. Phase 1 stored projects with a free-text `domain`; reading a v1 envelope migrates
+`domain → systemType` and adds the empty `organization` / `analyst` fields, then writes the upgraded value back
+once. Migration tests live in `frontend/src/storage/StorageService.test.ts`, so existing local data is carried
+forward instead of being discarded.
+
 ## Roadmap
 
-1. ✅ Foundation · 2. Project management · 3. System input · 4. Gemini AI · 5. System understanding ·
+1. ✅ Foundation · 2. ✅ Project management · 3. System input · 4. Gemini AI · 5. System understanding ·
 6. PIECES / findings / recommendations · 7. Requirements · 8. Process analysis · 9. Diagrams ·
 10. Report & PDF · 11. Polish

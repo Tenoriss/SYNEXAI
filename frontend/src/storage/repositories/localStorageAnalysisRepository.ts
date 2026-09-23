@@ -1,5 +1,5 @@
 import type { KeyValueDriver } from '../driver'
-import { StoredValue, parseArray, type IssueReporter } from '../collection'
+import { PASSTHROUGH_MIGRATIONS, StoredValue, parseArray, type IssueReporter } from '../collection'
 import { STORAGE_KEYS } from '../keys'
 import { isAnalysisVersion, isSystemInput } from '../validators'
 import { NotFoundError, ValidationError, type AnalysisRepository } from './types'
@@ -18,6 +18,8 @@ export class LocalStorageAnalysisRepository implements AnalysisRepository {
       key: STORAGE_KEYS.analysisVersions,
       fallback: () => [],
       parse: (data) => parseArray(data, isAnalysisVersion),
+      // Analysis history is unchanged in schema v2.
+      migrations: PASSTHROUGH_MIGRATIONS,
       onIssue,
     })
   }

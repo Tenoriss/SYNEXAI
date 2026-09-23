@@ -1,5 +1,5 @@
 import type { KeyValueDriver } from '../driver'
-import { StoredValue, type IssueReporter } from '../collection'
+import { PASSTHROUGH_MIGRATIONS, StoredValue, type IssueReporter } from '../collection'
 import { STORAGE_KEYS } from '../keys'
 import { normaliseSettings } from '../validators'
 import type { SettingsRepository } from './types'
@@ -17,6 +17,8 @@ export class LocalStorageSettingsRepository implements SettingsRepository {
         const value = normaliseSettings(data)
         return value ? { value, dropped: 0 } : null
       },
+      // Settings are unchanged in schema v2.
+      migrations: PASSTHROUGH_MIGRATIONS,
       onIssue,
     })
   }

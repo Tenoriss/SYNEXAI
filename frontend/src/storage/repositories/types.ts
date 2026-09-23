@@ -1,4 +1,4 @@
-import type { NewProjectInput, Project, ProjectUpdate } from '@/types/project'
+import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
 import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
 
@@ -15,6 +15,12 @@ export interface ProjectRepository {
   get(id: string): Promise<Project | null>
   create(input: NewProjectInput): Promise<Project>
   update(id: string, patch: ProjectUpdate): Promise<Project>
+  setStatus(id: string, status: ProjectStatus): Promise<Project>
+  /** Sets status to `Archived`; the project and its data stay stored. */
+  archive(id: string): Promise<Project>
+  /** Returns an archived project to `Draft`. */
+  restore(id: string): Promise<Project>
+  duplicate(id: string): Promise<Project>
   delete(id: string): Promise<void>
 }
 

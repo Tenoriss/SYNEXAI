@@ -8,16 +8,21 @@ import {
   Plus,
   Search,
   Sparkles,
+  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Skeleton } from '@/components/ui'
+import { ProjectStatusBadge } from '@/components/projects/ProjectStatusBadge'
+import { countProjects, mostRecentlyUpdated } from '@/features/projects/query'
 import { useStorageQuery } from '@/hooks/useStorage'
 import { storageService } from '@/storage'
-import type { Project } from '@/types/project'
+import { formatRelativeTime } from '@/utils/format'
+import { PROJECT_STATUSES, type Project } from '@/types/project'
 
 interface DashboardData {
   projects: Project[]
   analysisVersions: number
+  persistent: boolean
 }
 
 const WORKFLOW = [
@@ -33,7 +38,17 @@ const WORKFLOW = [
   'Report',
 ]
 
-function StatCard({ icon: Icon, label, value, hint }: { icon: LucideIcon; label: string; value: number | undefined; hint: string }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: LucideIcon
+  label: string
+  value: number | undefined
+  hint: string
+}) {
   return (
     <Card className="p-5">
       <div className="flex items-center gap-2 text-small text-fg-secondary">
@@ -51,16 +66,17 @@ function StatCard({ icon: Icon, label, value, hint }: { icon: LucideIcon; label:
 }
 
 export function DashboardPage() {
-  const { data, loading } = useStorageQuery<DashboardData>(
+  const { data, loading, error, reload } = useStorageQuery<DashboardData>(
     async () => {
       const [projects, stats] = await Promise.all([storageService.getProjects(), storageService.getStats()])
-      return { projects, analysisVersions: stats.analysisVersions }
+      return { projects, analysisVersions: stats.analysisVersions, persistent: stats.persistent }
     },
     ['projects', 'analyses'],
   )
 
   const projects = data?.projects
-  const recent = projects ? [...projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5) : []
+  const byStatus = countProjects(projects ?? [])
+  const recent = projects ? mostRecentlyUpdated(projects, 5) : []
   const hasProjects = (projects?.length ?? 0) > 0
 
   return (
@@ -69,39 +85,82 @@ export function DashboardPage() {
         title="Dashboard"
         description="Analyze, document and improve any information system with structured methodology and AI assistance."
         actions={
-          <Link to="/analysis/new" className="w-full sm:w-auto">
-            <Button leftIcon={<Plus size={16} aria-hidden />} className="w-full justify-center" tabIndex={-1}>
-              Start Analysis
-            </Button>
-          </Link>
+          <>
+            <Link to="/projects/new">
+              <Button leftIcon={<Plus size={16} aria-hidden />} className="w-full justify-center sm:w-auto" tabIndex={-1}>
+                New Project
+              </Button>
+            </Link>
+            <Link to="/projects">
+              <Button variant="secondary" className="w-full justify-center sm:w-auto" tabIndex={-1}>
+                View Projects
+              </Button>
+            </Link>
+          </>
         }
       />
 
+      {!loading && !data?.persistent && (
+        <p className="mb-6 flex items-start gap-2 rounded-md bg-warning-soft p-3 text-small text-warning">
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+          This browser is not saving local data, so anything you create now will disappear on reload.
+        </p>
+      )}
+
+      {error && (
+        <Card className="mb-6 border-error/30">
+          <EmptyState
+            icon={<TriangleAlert size={22} aria-hidden />}
+            title="Workspace data could not be read"
+            description={error.message}
+            action={
+              <Button variant="secondary" onClick={reload}>
+                Try again
+              </Button>
+            }
+          />
+        </Card>
+      )}
+
+      {/* Every number below counts real projects — never a placeholder value (spec §19). */}
       <section aria-label="Workspace statistics" className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard icon={FolderKanban} label="Total Projects" value={projects?.length} hint="Stored in this browser" />
+        <StatCard
+          icon={FolderKanban}
+          label="Total Projects"
+          value={projects?.length}
+          hint="Stored in this browser only"
+        />
         <StatCard
           icon={Activity}
           label="Active Analyses"
-          value={projects?.filter((p) => p.status === 'Analyzing').length}
-          hint="Projects currently analyzing"
+          value={byStatus.Analyzing}
+          hint="Projects you marked Analyzing"
         />
         <StatCard
           icon={CheckCircle2}
           label="Completed Analyses"
-          value={projects?.filter((p) => p.status === 'Completed').length}
-          hint="Projects marked completed"
+          value={byStatus.Completed}
+          hint="Projects you marked Completed"
         />
-        <StatCard icon={Search} label="Findings" value={loading ? undefined : 0} hint="Generated by analyses" />
+        <StatCard
+          icon={Search}
+          label="Needs Review"
+          value={byStatus['Needs Review']}
+          hint="Analyses waiting on your review"
+        />
       </section>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader
             title="Recent Projects"
             icon={<FolderOpen size={18} aria-hidden />}
             action={
               hasProjects && (
-                <Link to="/projects" className="inline-flex items-center gap-1 rounded-sm text-small font-medium text-primary hover:underline">
+                <Link
+                  to="/projects"
+                  className="inline-flex items-center gap-1 rounded-sm text-small font-medium text-primary hover:underline"
+                >
                   View all <ArrowRight size={14} aria-hidden />
                 </Link>
               )
@@ -118,10 +177,15 @@ export function DashboardPage() {
               {recent.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-fg">{p.name}</p>
-                    <p className="truncate text-small text-fg-muted">{p.domain || 'No domain specified'}</p>
+                    <Link to={`/projects/${p.id}`} className="truncate rounded-sm font-medium text-fg hover:text-primary hover:underline">
+                      {p.name}
+                    </Link>
+                    <p className="truncate text-small text-fg-muted">
+                      {[p.systemType, p.organization].filter(Boolean).join(' · ') || 'No system type yet'} ·
+                      updated {formatRelativeTime(p.updatedAt)}
+                    </p>
                   </div>
-                  <Badge>{p.status}</Badge>
+                  <ProjectStatusBadge status={p.status} />
                 </li>
               ))}
             </ul>
@@ -129,11 +193,11 @@ export function DashboardPage() {
             <EmptyState
               icon={<FolderKanban size={22} aria-hidden />}
               title="No projects yet"
-              description="Provide information about an existing or proposed system to begin your first analysis."
+              description="Create your first system analysis project to begin understanding, analyzing, and improving an information system."
               action={
-                <Link to="/analysis/new">
-                  <Button leftIcon={<Plus size={16} aria-hidden />} className="w-full justify-center" tabIndex={-1}>
-                    Start Analysis
+                <Link to="/projects/new">
+                  <Button leftIcon={<Plus size={16} aria-hidden />} className="w-full justify-center sm:w-auto" tabIndex={-1}>
+                    Create Project
                   </Button>
                 </Link>
               }
@@ -143,17 +207,49 @@ export function DashboardPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Recent Findings" icon={<Search size={18} aria-hidden />} />
+            <CardHeader
+              title="Status breakdown"
+              icon={<FolderKanban size={18} aria-hidden />}
+              description="Counts of your own projects by status."
+            />
+            {loading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : hasProjects ? (
+              <ul className="space-y-2">
+                {PROJECT_STATUSES.map((status) => (
+                  <li key={status} className="flex items-center justify-between gap-3">
+                    <ProjectStatusBadge status={status} />
+                    <span className="text-small font-medium text-fg tabular-nums">{byStatus[status]}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-small text-fg-secondary">
+                Nothing to count yet. Statuses appear once you create a project.
+              </p>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Recent Findings"
+              icon={<Search size={18} aria-hidden />}
+              action={<Badge>Phase 6</Badge>}
+            />
             <p className="text-small text-fg-secondary">
-              Findings appear here after an analysis is completed. Each finding is linked to evidence, a PIECES
-              dimension and a recommendation.
+              {data?.analysisVersions
+                ? `${data.analysisVersions} saved analysis version${data.analysisVersions === 1 ? '' : 's'} in this browser.`
+                : 'No analysis versions stored yet.'}{' '}
+              Findings appear after an analysis is completed, each linked to evidence, a PIECES dimension and a
+              recommendation.
             </p>
           </Card>
+
           <Card className="bg-primary-soft/40">
-            <CardHeader title="Recent AI Insights" icon={<Sparkles size={18} aria-hidden />} />
+            <CardHeader title="Recent AI Insights" icon={<Sparkles size={18} aria-hidden />} action={<Badge>Phase 4</Badge>} />
             <p className="text-small text-fg-secondary">
-              No insights yet. SYNEX AI only reports what your system description supports and labels assumptions
-              and missing information explicitly.
+              No insights yet. SYNEX AI only reports what your system description supports and labels assumptions and
+              missing information explicitly.
             </p>
           </Card>
         </div>

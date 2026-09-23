@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { Button } from './Button'
+import { cn } from '@/utils/cn'
 
 interface DialogProps {
   open: boolean
@@ -10,10 +11,13 @@ interface DialogProps {
   description?: ReactNode
   children?: ReactNode
   footer?: ReactNode
+  /** `lg` is used for forms; panels never exceed the viewport on small screens. */
+  size?: 'md' | 'lg'
+  variant?: 'default' | 'danger'
 }
 
 /** Accessible modal: focus trap, Escape to close, focus restoration, aria-modal. */
-export function Dialog({ open, onClose, title, description, children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, description, children, footer, size = 'md', variant = 'default' }: DialogProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -78,7 +82,11 @@ export function Dialog({ open, onClose, title, description, children, footer }: 
             aria-labelledby={titleId}
             aria-describedby={description ? descId : undefined}
             tabIndex={-1}
-            className="relative w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-md"
+            className={cn(
+              'relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-xl border bg-surface p-5 shadow-md sm:p-6',
+              size === 'lg' ? 'max-w-2xl' : 'max-w-md',
+              variant === 'danger' ? 'border-error/40' : 'border-border',
+            )}
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
@@ -98,7 +106,11 @@ export function Dialog({ open, onClose, title, description, children, footer }: 
               </div>
             )}
             {children && <div className="mt-4">{children}</div>}
-            {footer && <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>}
+            {footer && (
+              <div className="mt-6 flex shrink-0 flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+                {footer}
+              </div>
+            )}
           </motion.div>
         </div>
       )}

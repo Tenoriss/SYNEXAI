@@ -73,14 +73,33 @@ Sidebar 240px (collapsed 72px, drawer below 1024px) · header 64px · content ma
 ## Components (frontend/src/components/ui)
 
 `Button` (primary / secondary / ghost / destructive; 44px default) · `Card`, `CardHeader` · `Badge` ·
-`EmptyState` · `Skeleton` · `PageHeader` · `Dialog` (focus trap, Escape, focus restore). Reuse and extend
-these before creating new components.
+`EmptyState` · `Skeleton` · `PageHeader` · `Dialog` (focus trap, Escape, focus restore; `size="lg"` for forms,
+`variant="danger"` for destructive confirmations) · `Field` + `TextInput` / `TextArea` / `SelectInput`
+(visible label, counter, inline error as icon + text) · `ToastViewport` (polite live region, `useToast()`).
+Reuse and extend these before creating new components.
+
+### List and form patterns (Phase 2)
+
+- **Status colour is never alone:** `ProjectStatusBadge` pairs a tone with a Lucide icon and the status word.
+- **Table → cards:** a real `<table>` with caption, `scope` headers and row headers from `md` upward; the same
+  data renders as cards below `md`. Never squeeze a six-column table into a phone.
+- **Row actions** are icon buttons with unique accessible names ("Edit Warehouse Inventory System"), and they stop
+  propagation so they never trigger the row link behind them.
+- **Destructive actions** (delete, reset data) always open a `Dialog` confirm step; the first click never deletes.
+- **Search/filter chips** carry live counts and are announced through `aria-live`; the visible count line states
+  how many of how many are shown.
+- **Relative dates** ("3 hours ago", "just now") in lists, with the absolute date/time in `title`; `formatDateTime`
+  for detail pages.
+- **Empty vs. no-match are different states:** "No projects yet" offers the create action; "No projects found"
+  offers *Clear search and filters* and says stored data is unchanged.
+- **Placeholders stay honest:** unimplemented modules are non-interactive list items labelled
+  "Phase N", never disabled buttons that pretend to work.
 
 ## Motion
 
-Framer Motion, sparingly: 120ms (hover) · 200ms (page/modal) · 300ms (large). Easing `cubic-bezier(0.2,0,0,1)`.
-`MotionConfig reducedMotion="user"` plus a CSS `prefers-reduced-motion` override.
-No infinite decorative animation, no bouncing, no glowing.
+Framer Motion, sparingly: 120ms (hover) · 200ms (page/modal/toast) · 300ms (large). Easing `cubic-bezier(0.2,0,0,1)`.
+`MotionConfig reducedMotion="user"` plus a CSS `prefers-reduced-motion` override; toasts and dialogs drop their
+translate/scale when the user reduces motion. No infinite decorative animation, no bouncing, no glowing.
 
 ## Accessibility
 

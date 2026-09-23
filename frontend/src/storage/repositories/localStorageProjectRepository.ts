@@ -1,16 +1,41 @@
 import type { KeyValueDriver } from '../driver'
-import { StoredValue, parseArray, type IssueReporter } from '../collection'
+import { StoredValue, parseArray, type IssueReporter, type Migration } from '../collection'
 import { STORAGE_KEYS } from '../keys'
 import { isProject } from '../validators'
 import { NotFoundError, ValidationError, type ProjectRepository } from './types'
-import { PROJECT_STATUSES, type NewProjectInput, type Project, type ProjectUpdate } from '@/types/project'
+import { PROJECT_LIMITS, PROJECT_STATUSES, type NewProjectInput, type Project, type ProjectStatus, type ProjectUpdate } from '@/types/project'
 import { createId } from '@/utils/id'
-import { isOneOf } from '@/utils/guards'
-
-export const PROJECT_LIMITS = { name: 120, domain: 120, description: 2000 } as const
+import { isOneOf, isRecord, isString } from '@/utils/guards'
 
 function clean(value: string | undefined, max: number): string {
   return (value ?? '').trim().slice(0, max)
+}
+
+function required(value: string | undefined, max: number, label: string): string {
+  const v = clean(value, max)
+  if (!v) throw new ValidationError(`${label} is required.`)
+  return v
+}
+
+/**
+ * v1 → v2: a project stored `domain`; Phase 2 models it as `systemType` and
+ * adds `organization` / `analyst`. Unknown fields are ignored, and anything
+ * that is not a list of objects is left for the validator to reject.
+ */
+export const PROJECT_MIGRATIONS: Record<number, Migration> = {
+  1: (data) => {
+    if (!Array.isArray(data)) return data
+    return data.map((item) => {
+      if (!isRecord(item)) return item
+      const next: Record<string, unknown> = { ...item }
+      const legacyDomain = isString(item.domain) ? item.domain : ''
+      delete next.domain
+      if (!isString(next.systemType) || !next.systemType) next.systemType = legacyDomain
+      if (!isString(next.organization)) next.organization = ''
+      if (!isString(next.analyst)) next.analyst = ''
+      return next
+    })
+  },
 }
 
 export class LocalStorageProjectRepository implements ProjectRepository {
@@ -22,6 +47,7 @@ export class LocalStorageProjectRepository implements ProjectRepository {
       key: STORAGE_KEYS.projects,
       fallback: () => [],
       parse: (data) => parseArray(data, isProject),
+      migrations: PROJECT_MIGRATIONS,
       onIssue,
     })
   }
@@ -35,18 +61,17 @@ export class LocalStorageProjectRepository implements ProjectRepository {
   }
 
   async create(input: NewProjectInput) {
-    const name = clean(input.name, PROJECT_LIMITS.name)
-    if (!name) throw new ValidationError('Project name is required.')
     if (input.status !== undefined && !isOneOf(PROJECT_STATUSES, input.status)) {
       throw new ValidationError('Invalid project status.')
     }
-
     const now = new Date().toISOString()
     const project: Project = {
       id: createId(),
-      name,
-      description: clean(input.description, PROJECT_LIMITS.description),
-      domain: clean(input.domain, PROJECT_LIMITS.domain),
+      name: required(input.name, PROJECT_LIMITS.name, 'Project name'),
+      description: required(input.description, PROJECT_LIMITS.description, 'Description'),
+      systemType: required(input.systemType, PROJECT_LIMITS.systemType, 'System type'),
+      organization: clean(input.organization, PROJECT_LIMITS.organization),
+      analyst: clean(input.analyst, PROJECT_LIMITS.analyst),
       status: input.status ?? 'Draft',
       createdAt: now,
       updatedAt: now,
@@ -60,26 +85,58 @@ export class LocalStorageProjectRepository implements ProjectRepository {
     const index = projects.findIndex((p) => p.id === id)
     if (index === -1) throw new NotFoundError('Project', id)
 
-    const current = projects[index]
-    const next: Project = { ...current }
-
-    if (patch.name !== undefined) {
-      const name = clean(patch.name, PROJECT_LIMITS.name)
-      if (!name) throw new ValidationError('Project name is required.')
-      next.name = name
-    }
-    if (patch.description !== undefined) next.description = clean(patch.description, PROJECT_LIMITS.description)
-    if (patch.domain !== undefined) next.domain = clean(patch.domain, PROJECT_LIMITS.domain)
+    const next: Project = { ...projects[index] }
+    if (patch.name !== undefined) next.name = required(patch.name, PROJECT_LIMITS.name, 'Project name')
+    if (patch.description !== undefined)
+      next.description = required(patch.description, PROJECT_LIMITS.description, 'Description')
+    if (patch.systemType !== undefined)
+      next.systemType = required(patch.systemType, PROJECT_LIMITS.systemType, 'System type')
+    if (patch.organization !== undefined) next.organization = clean(patch.organization, PROJECT_LIMITS.organization)
+    if (patch.analyst !== undefined) next.analyst = clean(patch.analyst, PROJECT_LIMITS.analyst)
     if (patch.status !== undefined) {
       if (!isOneOf(PROJECT_STATUSES, patch.status)) throw new ValidationError('Invalid project status.')
       next.status = patch.status
     }
+    // createdAt is never touched; updatedAt records the change (spec §11).
     next.updatedAt = new Date().toISOString()
 
     const updated = [...projects]
     updated[index] = next
     this.store.write(updated)
     return next
+  }
+
+  async setStatus(id: string, status: ProjectStatus) {
+    if (!isOneOf(PROJECT_STATUSES, status)) throw new ValidationError('Invalid project status.')
+    return this.update(id, { status })
+  }
+
+  /** Archiving is a status change, never a deletion (spec §13). */
+  async archive(id: string) {
+    const project = await this.get(id)
+    if (!project) throw new NotFoundError('Project', id)
+    if (project.status === 'Archived') return project
+    return this.update(id, { status: 'Archived' })
+  }
+
+  async restore(id: string) {
+    const project = await this.get(id)
+    if (!project) throw new NotFoundError('Project', id)
+    if (project.status !== 'Archived') return project
+    return this.update(id, { status: 'Draft' })
+  }
+
+  /** Copies the descriptive fields into a new Draft project (analysis history is not copied). */
+  async duplicate(id: string) {
+    const source = await this.get(id)
+    if (!source) throw new NotFoundError('Project', id)
+    return this.create({
+      name: `${source.name} (copy)`.slice(0, PROJECT_LIMITS.name),
+      description: source.description,
+      systemType: source.systemType,
+      organization: source.organization,
+      analyst: source.analyst,
+    })
   }
 
   async delete(id: string) {

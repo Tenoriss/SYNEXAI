@@ -1,9 +1,10 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ChevronRight, Menu, Moon, Sun } from 'lucide-react'
-import { findNavItem } from '@/data/navigation'
+import { useBreadcrumb } from '@/hooks/useBreadcrumb'
 import { useTheme } from '@/hooks/useTheme'
 import { Button } from '../ui'
 import { BackendStatusBadge } from '../BackendStatusBadge'
+import { cn } from '@/utils/cn'
 import type { BackendStatus } from '@/hooks/useBackendHealth'
 
 interface HeaderProps {
@@ -12,9 +13,8 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenMenu, backend }: HeaderProps) {
-  const { pathname } = useLocation()
   const { resolved, toggle } = useTheme()
-  const current = findNavItem(pathname)
+  const crumbs = useBreadcrumb()
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface/85 px-4 backdrop-blur sm:px-6 lg:px-8">
@@ -24,33 +24,37 @@ export function Header({ onOpenMenu, backend }: HeaderProps) {
 
       <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
         <ol className="flex items-center gap-1.5 text-small">
-          <li className="hidden sm:block">
-            <Link to="/" className="rounded-sm text-fg-muted hover:text-fg">
-              Workspace
-            </Link>
-          </li>
-          {current && current.path !== '/' && (
-            <>
-              <li className="hidden sm:block text-fg-muted" aria-hidden>
-                <ChevronRight size={14} />
+          {crumbs.map((crumb, i) => {
+            const last = i === crumbs.length - 1
+            return (
+              <li
+                key={`${crumb.label}-${i}`}
+                className={cn('min-w-0 items-center gap-1.5', i === 0 ? 'hidden sm:flex' : 'flex')}
+              >
+                {i > 0 && (
+                  <span
+                    className={cn('text-fg-muted', i === 1 && 'hidden sm:inline-flex')}
+                    aria-hidden
+                  >
+                    <ChevronRight size={14} />
+                  </span>
+                )}
+                {last || !crumb.to ? (
+                  <span
+                    {...(last ? { 'aria-current': 'page' as const } : {})}
+                    className={cn('truncate', last ? 'font-medium text-fg' : 'text-fg-muted')}
+                  >
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <Link to={crumb.to} className="rounded-sm text-fg-muted hover:text-fg">
+                    {crumb.label}
+                  </Link>
+                )}
               </li>
-              <li aria-current="page" className="truncate font-medium text-fg">
-                {current.label}
-              </li>
-            </>
-          )}
-          {current?.path === '/' && (
-            <>
-              <li className="hidden sm:block text-fg-muted" aria-hidden>
-                <ChevronRight size={14} />
-              </li>
-              <li aria-current="page" className="truncate font-medium text-fg">
-                Dashboard
-              </li>
-            </>
-          )}
+            )
+          })}
         </ol>
-        {/* Current project indicator arrives with project selection in Phase 2. */}
       </nav>
 
       <div className="flex items-center gap-2">

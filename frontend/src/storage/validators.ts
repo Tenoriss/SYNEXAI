@@ -24,7 +24,9 @@ export function isProject(v: unknown): v is Project {
     isNonEmptyString(v.id) &&
     isNonEmptyString(v.name) &&
     isString(v.description) &&
-    isString(v.domain) &&
+    isString(v.systemType) &&
+    isString(v.organization) &&
+    isString(v.analyst) &&
     isOneOf(PROJECT_STATUSES, v.status) &&
     isIsoDate(v.createdAt) &&
     isIsoDate(v.updatedAt)

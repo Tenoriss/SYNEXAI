@@ -2,8 +2,20 @@ import type { KeyValueDriver } from './driver'
 import { CORRUPT_BACKUP_PREFIX } from './keys'
 import { isRecord } from '@/utils/guards'
 
-/** Current on-disk schema version. Bump when the stored shape changes and add a migration. */
-export const SCHEMA_VERSION = 1
+/**
+ * Current on-disk schema version. Bump when the stored shape changes and add a
+ * migration for every affected key in `migrations`.
+ *
+ * v1 → v2 (Phase 2): projects gained `systemType`, `organization` and
+ * `analyst`; the Phase 1 `domain` field was folded into `systemType`.
+ */
+export const SCHEMA_VERSION = 2
+
+/** Migration from version N to N+1, operating on untrusted JSON. */
+export type Migration = (data: unknown) => unknown
+
+/** For keys whose shape did not change in a given version bump. */
+export const PASSTHROUGH_MIGRATIONS: Record<number, Migration> = { 1: (data) => data }
 
 /**
  * Every stored value is wrapped in an envelope so the schema can evolve safely:
@@ -14,9 +26,6 @@ export interface Envelope<T> {
   updatedAt: string
   data: T
 }
-
-/** Migration from version N to N+1, operating on untrusted JSON. */
-export type Migration = (data: unknown) => unknown
 
 export interface StorageIssue {
   key: string

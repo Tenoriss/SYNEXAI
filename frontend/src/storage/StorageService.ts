@@ -5,7 +5,7 @@ import { LocalStorageProjectRepository } from './repositories/localStorageProjec
 import { LocalStorageAnalysisRepository } from './repositories/localStorageAnalysisRepository'
 import { LocalStorageSettingsRepository } from './repositories/localStorageSettingsRepository'
 import type { AnalysisRepository, ProjectRepository, SettingsRepository } from './repositories/types'
-import type { NewProjectInput, Project, ProjectUpdate } from '@/types/project'
+import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
 import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
 
@@ -78,6 +78,33 @@ export class StorageService {
     return project
   }
 
+  async setProjectStatus(id: string, status: ProjectStatus): Promise<Project> {
+    const project = await this.projects.setStatus(id, status)
+    this.emit('projects')
+    return project
+  }
+
+  /** Archiving only changes the status: the project and its data stay stored (spec §13). */
+  async archiveProject(id: string): Promise<Project> {
+    const project = await this.projects.archive(id)
+    this.emit('projects')
+    return project
+  }
+
+  /** Brings an archived project back as a Draft. */
+  async restoreProject(id: string): Promise<Project> {
+    const project = await this.projects.restore(id)
+    this.emit('projects')
+    return project
+  }
+
+  /** Copies descriptive fields into a new Draft project; analysis history is not copied. */
+  async duplicateProject(id: string): Promise<Project> {
+    const project = await this.projects.duplicate(id)
+    this.emit('projects')
+    return project
+  }
+
   /** Deletes the project and all of its analysis versions. */
   async deleteProject(id: string): Promise<void> {
     await this.projects.delete(id)
@@ -128,6 +155,11 @@ export class StorageService {
 
   getIssues(): readonly StorageIssue[] {
     return this.issues
+  }
+
+  /** `false` when LocalStorage is unavailable and an in-memory fallback is used. */
+  get persistent(): boolean {
+    return this.driver.persistent
   }
 
   async getStats(): Promise<StorageStats> {
