@@ -1,4 +1,7 @@
 import type { ApiErrorBody, HealthResponse } from '@/types/api'
+import type { AnalysisTaskInfo, SystemUnderstandingResponse } from '@/types/analysis'
+import { parseSystemUnderstandingResponse } from '@/features/analysis/responseGuards'
+import { buildSystemUnderstandingPayload, type AnalyzeRequestSource } from '@/features/analysis/requestPayload'
 import { isRecord } from '@/utils/guards'
 
 /**
@@ -25,7 +28,17 @@ export class ApiError extends Error {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000
-const BASE_URL = '/api'
+
+/**
+ * An AI request is not a database read: the backend waits for the model. The
+ * client therefore allows the backend's own timeout (`AI_TIMEOUT_SECONDS`, 120s
+ * by default) to fire first, so the analyst sees the backend's precise message
+ * instead of a generic browser-level abort.
+ */
+const ANALYSIS_TIMEOUT_MS = 150_000
+
+/** Relative by default: Vite proxies /api to the backend, so no host is baked in. */
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL ?? '/api'
 
 interface RequestOptions {
   method?: 'GET' | 'POST'
@@ -36,7 +49,7 @@ interface RequestOptions {
 
 function kindForStatus(status: number): ApiErrorKind {
   if (status === 404) return 'not_found'
-  if (status === 422 || status === 400) return 'validation'
+  if (status === 422 || status === 400 || status === 501) return 'validation'
   if (status === 429) return 'rate_limit'
   if (status >= 500) return 'server'
   return 'unknown'
@@ -94,7 +107,9 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       throw new ApiError('network', FALLBACK_MESSAGES.network, res.status)
     }
     const body = isRecord(payload) && isRecord(payload.error) ? (payload.error as ApiErrorBody['error']) : null
-    throw new ApiError(kind, body?.message || FALLBACK_MESSAGES[kind], res.status, body?.code || kind)
+    const code = body?.code || kind
+    const kind2 = res.status === 504 && code === 'AI_TIMEOUT' ? 'timeout' : kind
+    throw new ApiError(kind2, body?.message || FALLBACK_MESSAGES[kind2], res.status, code)
   }
 
   if (payload === null) throw new ApiError('server', 'The server returned an unexpected response.', res.status)
@@ -117,5 +132,44 @@ export const ApiService = {
     const data = await request<unknown>('/health', { signal, timeoutMs: 5_000 })
     if (!isHealthResponse(data)) throw new ApiError('server', 'The server returned an unexpected health response.')
     return data
+  },
+
+  /**
+   * Runs the system-understanding analysis. The browser talks to the SYNEX AI
+   * backend only; the backend owns the Gemini call and the API key.
+   *
+   * The response is re-validated here: raw model text is never trusted, and a
+   * response that does not match the documented shape becomes an error instead of
+   * being stored as an analysis.
+   */
+  async analyzeSystemUnderstanding(
+    payload: AnalyzeRequestSource,
+    signal?: AbortSignal,
+  ): Promise<SystemUnderstandingResponse> {
+    const data = await request<unknown>('/analyze/system-understanding', {
+      method: 'POST',
+      body: buildSystemUnderstandingPayload(payload),
+      signal,
+      timeoutMs: ANALYSIS_TIMEOUT_MS,
+    })
+    const parsed = parseSystemUnderstandingResponse(data)
+    if (!parsed) {
+      throw new ApiError('server', 'The AI response did not match the expected structure. Nothing was stored.')
+    }
+    return parsed
+  },
+
+  /** Which analysis tasks this server can run — used to explain what is not available. */
+  async analysisTasks(signal?: AbortSignal): Promise<AnalysisTaskInfo[]> {
+    const data = await request<unknown>('/analyze/tasks', { signal, timeoutMs: 5_000 })
+    if (!isRecord(data) || !Array.isArray(data.data)) return []
+    return data.data
+      .filter(isRecord)
+      .map((item): AnalysisTaskInfo => ({
+        type: typeof item.type === 'string' ? item.type : '',
+        label: typeof item.label === 'string' ? item.label : '',
+        status: item.status === 'available' ? 'available' : 'not-implemented',
+        note: typeof item.note === 'string' ? item.note : '',
+      }))
   },
 }

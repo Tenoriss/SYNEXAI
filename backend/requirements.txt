@@ -4,6 +4,12 @@ uvicorn[standard]>=0.30
 pydantic>=2.9,<3.0
 python-dotenv>=1.0
 
+# AI provider — the official Google GenAI SDK (successor of google-generativeai).
+# Pinned exactly on purpose: app/ai/gemini.py is written against this SDK's API, and
+# tests/test_gemini_transport.py asserts the request shape it puts on the wire.
+# Bumping this version should therefore be a deliberate, reviewed change.
+google-genai==2.25.0
+
 # Testing
 pytest>=8.0
 httpx>=0.27

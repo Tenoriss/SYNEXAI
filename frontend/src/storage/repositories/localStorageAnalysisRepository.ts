@@ -1,73 +1,103 @@
 import type { KeyValueDriver } from '../driver'
-import { PASSTHROUGH_MIGRATIONS, StoredValue, parseArray, type IssueReporter } from '../collection'
+import { PASSTHROUGH_MIGRATIONS, StoredValue, type IssueReporter, type Migration } from '../collection'
 import { STORAGE_KEYS } from '../keys'
-import { isAnalysisVersion, isSystemInput } from '../validators'
+import { isAnalysisRecord, normaliseAnalysisRecords, upgradeAnalysisRecordToV3 } from '../validators'
 import { NotFoundError, ValidationError, type AnalysisRepository } from './types'
-import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
+import type { AnalysisRecord, AnalysisTaskType, NewAnalysisRecord } from '@/types/analysis'
 import { createId } from '@/utils/id'
 import { isNonEmptyString, isRecord } from '@/utils/guards'
 
-const newestFirst = (a: AnalysisVersion, b: AnalysisVersion) => b.createdAt.localeCompare(a.createdAt)
+const newestFirst = (a: AnalysisRecord, b: AnalysisRecord) => b.createdAt.localeCompare(a.createdAt)
 
+/**
+ * Analysis results, one append-only record per run, keyed by project.
+ *
+ * Two rules the UI depends on and this layer enforces:
+ *  • `create` never modifies an existing record — regenerating keeps history.
+ *  • a record whose result fails validation is rejected at write time, so no
+ *    unvalidated AI text can be stored as trusted analysis.
+ */
 export class LocalStorageAnalysisRepository implements AnalysisRepository {
-  private readonly store: StoredValue<AnalysisVersion[]>
+  private readonly store: StoredValue<AnalysisRecord[]>
 
   constructor(driver: KeyValueDriver, onIssue?: IssueReporter) {
-    this.store = new StoredValue<AnalysisVersion[]>({
+    // v1 and v2 both stored the Phase 1/2 shape (`inputSnapshot` + raw result).
+    const migrations: Record<number, Migration> = { ...PASSTHROUGH_MIGRATIONS, 1: migrateLegacy, 2: migrateLegacy }
+    this.store = new StoredValue<AnalysisRecord[]>({
       driver,
       key: STORAGE_KEYS.analysisVersions,
       fallback: () => [],
-      parse: (data) => parseArray(data, isAnalysisVersion),
-      // Analysis history is unchanged in schema v2.
-      migrations: PASSTHROUGH_MIGRATIONS,
+      parse: normaliseAnalysisRecords,
+      migrations,
       onIssue,
     })
   }
 
-  async listByProject(projectId: string) {
+  async listByProject(projectId: string): Promise<AnalysisRecord[]> {
     return this.store
       .read()
-      .filter((v) => v.projectId === projectId)
+      .filter((record) => record.projectId === projectId)
       .sort(newestFirst)
   }
 
-  async get(id: string) {
-    return this.store.read().find((v) => v.id === id) ?? null
+  async listAll(): Promise<AnalysisRecord[]> {
+    return this.store.read()
   }
 
-  async create(input: NewAnalysisVersion) {
-    if (!isNonEmptyString(input.projectId)) throw new ValidationError('Analysis must belong to a project.')
-    if (!isSystemInput(input.inputSnapshot)) throw new ValidationError('Analysis input snapshot is invalid.')
-    if (!isRecord(input.analysisResult)) throw new ValidationError('Analysis result must be an object.')
+  async getLatest(projectId: string): Promise<AnalysisRecord | null> {
+    return this.store.read().filter((record) => record.projectId === projectId).sort(newestFirst)[0] ?? null
+  }
 
-    const version: AnalysisVersion = {
+  async get(id: string): Promise<AnalysisRecord | null> {
+    return this.store.read().find((record) => record.id === id) ?? null
+  }
+
+  async create(input: NewAnalysisRecord): Promise<AnalysisRecord> {
+    if (!isNonEmptyString(input.projectId)) throw new ValidationError('An analysis must belong to a project.')
+    if (!isRecord(input.input)) throw new ValidationError('An analysis must record the input it was based on.')
+    if (!isRecord(input.result)) throw new ValidationError('An analysis result must be a validated object.')
+    if (!isRecord(input.meta)) throw new ValidationError('An analysis result must carry its run metadata.')
+
+    const now = new Date().toISOString()
+    const record: AnalysisRecord = {
       id: createId(),
       projectId: input.projectId,
-      createdAt: new Date().toISOString(),
-      // Deep-copy so later edits to the form or result can't mutate history.
-      inputSnapshot: structuredClone(input.inputSnapshot),
-      analysisResult: structuredClone(input.analysisResult),
+      type: (input.type ?? 'system-understanding') as AnalysisTaskType,
+      createdAt: now,
+      updatedAt: now,
+      sourceInformationUpdatedAt: input.sourceInformationUpdatedAt,
+      // Deep copy: a later autosave of the form must never rewrite history.
+      input: structuredClone(input.input),
+      result: structuredClone(input.result),
+      meta: structuredClone(input.meta),
     }
-    this.store.write([...this.store.read(), version])
-    return version
+
+    if (!isAnalysisRecord(record)) throw new ValidationError('Analysis record failed the storage invariants.')
+    this.store.write([...this.store.read(), record])
+    return record
   }
 
-  async delete(id: string) {
+  async delete(id: string): Promise<void> {
     const all = this.store.read()
-    const remaining = all.filter((v) => v.id !== id)
+    const remaining = all.filter((record) => record.id !== id)
     if (remaining.length === all.length) throw new NotFoundError('Analysis', id)
     this.store.write(remaining)
   }
 
-  async deleteByProject(projectId: string) {
+  async deleteByProject(projectId: string): Promise<number> {
     const all = this.store.read()
-    const remaining = all.filter((v) => v.projectId !== projectId)
+    const remaining = all.filter((record) => record.projectId !== projectId)
     const removed = all.length - remaining.length
     if (removed > 0) this.store.write(remaining)
     return removed
   }
 
-  async countAll() {
+  async countAll(): Promise<number> {
     return this.store.read().length
   }
+}
+
+function migrateLegacy(data: unknown): unknown {
+  if (!Array.isArray(data)) return data
+  return data.map(upgradeAnalysisRecordToV3)
 }

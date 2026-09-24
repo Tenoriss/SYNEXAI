@@ -17,5 +17,7 @@ async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
             provider=settings.ai_provider,
             supported=settings.ai_provider_supported,
             configured=settings.ai_configured,
+            model=settings.gemini_model if settings.ai_provider == "gemini" else None,
+            timeout_seconds=settings.ai_timeout_seconds,
         ),
     )

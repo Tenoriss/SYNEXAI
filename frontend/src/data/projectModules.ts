@@ -1,3 +1,4 @@
+import { analysisPath } from '@/features/analysis/paths'
 import {
   BarChart3,
   FileText,
@@ -11,24 +12,28 @@ import {
 } from 'lucide-react'
 
 /**
- * Analysis modules shown on a project's overview (spec §17).
- * They are deliberately **not** routes yet — Phase 2 only builds the project
- * foundation, so each entry names the phase that will deliver it and renders
- * disabled. No placeholder content is fabricated for them.
+ * Analysis modules shown on a project's overview (spec §17). An entry names the
+ * phase that delivers it and renders disabled until it exists; only modules with
+ * a `to` are reachable, so nothing is presented as available before it is built.
  */
 export interface ProjectModule {
   label: string
   icon: LucideIcon
   phase: number
   description: string
+  /** Resolves to a route once the module exists. Absent means: not built yet. */
+  to?: (projectId: string) => string
 }
 
 export const PROJECT_MODULES: ProjectModule[] = [
   {
     label: 'System Overview',
     icon: Layers,
-    phase: 5,
+    // Phase 4 delivered the first half of this module: the AI-generated system
+    // understanding. The curated overview view grows with later phases.
+    phase: 4,
     description: 'Purpose, actors, stakeholders, inputs, outputs and processes.',
+    to: analysisPath,
   },
   {
     label: 'PIECES Analysis',

@@ -165,36 +165,49 @@ export function ProjectOverviewPage() {
           <Card>
             <CardHeader
               title="Analysis modules"
-              description="Each module is built in a later phase and stays empty until then. System information is the input they will read."
+              description="Modules become available as the phases land. System understanding is available now; the rest stay empty until their phase builds them."
               icon={<CalendarClock size={18} aria-hidden />}
               action={
-                <Badge icon={<Lock size={14} aria-hidden />}>From Phase 4</Badge>
+                <Badge icon={<Lock size={14} aria-hidden />}>
+                  {PROJECT_MODULES.filter((module) => module.to).length} of {PROJECT_MODULES.length} available
+                </Badge>
               }
             />
             <ul className="grid gap-3 sm:grid-cols-2">
-              {PROJECT_MODULES.map((module) => (
-                <li
-                  key={module.label}
-                  aria-disabled="true"
-                  className={cn(
-                    'flex items-start gap-3 rounded-md border border-border bg-surface-muted/50 p-4',
-                    'text-fg-secondary',
-                  )}
-                >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface text-fg-muted">
-                    <module.icon size={18} aria-hidden />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 text-small font-semibold text-fg">
-                      {module.label}
-                      <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-caption font-medium text-fg-muted">
-                        Phase {module.phase}
-                      </span>
-                    </p>
-                    <p className="mt-0.5 text-caption text-fg-muted">{module.description}</p>
-                  </div>
-                </li>
-              ))}
+              {PROJECT_MODULES.map((module) => {
+                const href = module.to?.(project.id)
+                return (
+                  <li
+                    key={module.label}
+                    aria-disabled={href ? undefined : 'true'}
+                    className={cn(
+                      'flex items-start gap-3 rounded-md border p-4',
+                      href
+                        ? 'border-border-strong bg-surface text-fg-secondary transition-colors hover:border-primary hover:bg-primary-soft/30'
+                        : 'border-border bg-surface-muted/50 text-fg-secondary',
+                    )}
+                  >
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface text-fg-muted">
+                      <module.icon size={18} aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-small font-semibold text-fg">
+                        {href ? (
+                          <Link to={href} className="rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-primary">
+                            {module.label}
+                          </Link>
+                        ) : (
+                          module.label
+                        )}
+                        <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-caption font-medium text-fg-muted">
+                          Phase {module.phase}
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-caption text-fg-muted">{module.description}</p>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           </Card>
         </div>

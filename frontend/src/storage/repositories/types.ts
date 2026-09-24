@@ -1,5 +1,5 @@
 import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
-import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
+import type { AnalysisRecord, NewAnalysisRecord } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
 import type {
   SystemInformation,
@@ -45,11 +45,12 @@ export interface SystemInformationRepository {
 }
 
 export interface AnalysisRepository {
-  /** Versions for a project, newest first. */
-  listByProject(projectId: string): Promise<AnalysisVersion[]>
-  get(id: string): Promise<AnalysisVersion | null>
-  /** Always appends a new immutable version; history is never overwritten. */
-  create(input: NewAnalysisVersion): Promise<AnalysisVersion>
+  /** Results for one project, newest first. */
+  listByProject(projectId: string): Promise<AnalysisRecord[]>
+  getLatest(projectId: string): Promise<AnalysisRecord | null>
+  get(id: string): Promise<AnalysisRecord | null>
+  /** Always appends a new immutable record; history is never overwritten. */
+  create(input: NewAnalysisRecord): Promise<AnalysisRecord>
   delete(id: string): Promise<void>
   deleteByProject(projectId: string): Promise<number>
   countAll(): Promise<number>

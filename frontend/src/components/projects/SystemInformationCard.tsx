@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
-import { ClipboardList } from 'lucide-react'
+import { Bot, ClipboardList } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, Skeleton } from '@/components/ui'
 import { NOT_PROVIDED, type SystemInformationContent } from '@/types/systemInformation'
 import { completedSections, filled, SI_STATUS_LABEL, summarise } from '@/features/systemInformation/completeness'
 import { SI_SECTION_COUNT, SI_SECTIONS } from '@/features/systemInformation/sections'
 import { systemInformationPath } from '@/features/systemInformation/paths'
+import { analysisPath } from '@/features/analysis/paths'
 import { useSystemInformationRecord } from '@/hooks/useSystemInformation'
+import { useLatestAnalysis } from '@/hooks/useAnalysis'
 import { formatRelativeTime } from '@/utils/format'
 import { cn } from '@/utils/cn'
 
@@ -27,6 +29,7 @@ const COUNTS: { label: string; count: (content: SystemInformationContent) => num
  */
 export function SystemInformationCard({ projectId }: { projectId: string }) {
   const { record, content, loading } = useSystemInformationRecord(projectId)
+  const { record: analysis, count: analysisCount } = useLatestAnalysis(projectId)
   const summary = summarise(record)
   const completed = content ? completedSections(content) : []
   const status = summary.status
@@ -97,11 +100,30 @@ export function SystemInformationCard({ projectId }: { projectId: string }) {
             })}
           </ul>
 
-          <Link to={systemInformationPath(projectId)} className="mt-5 block">
-            <Button variant={status === 'not-started' ? 'primary' : 'secondary'} className="w-full justify-center">
-              {cta}
-            </Button>
-          </Link>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Link to={systemInformationPath(projectId)} className="min-w-0 flex-1">
+              <Button variant={status === 'not-started' ? 'primary' : 'secondary'} className="w-full justify-center">
+                {cta}
+              </Button>
+            </Link>
+            <Link to={analysisPath(projectId)} className="min-w-0 flex-1">
+              <Button
+                variant={status === 'not-started' ? 'ghost' : 'primary'}
+                className="w-full justify-center"
+                leftIcon={<Bot size={16} aria-hidden />}
+              >
+                {analysis ? 'View System Understanding' : 'Analyze System'}
+              </Button>
+            </Link>
+          </div>
+
+          <p className="mt-3 text-caption text-fg-muted" role="status">
+            {analysis
+              ? `System understanding generated ${formatRelativeTime(analysis.meta.generatedAt)} by ${analysis.meta.provider}${analysis.meta.model ? ` (${analysis.meta.model})` : ''}${
+                  analysisCount > 1 ? ` · ${analysisCount} runs stored` : ''
+                }.`
+              : 'No system understanding has been generated for this project yet.'}
+          </p>
           <p className="mt-3 text-caption text-fg-muted">
             Nothing on this card is generated. Counts and status are derived from the record stored for this project in
             this browser.

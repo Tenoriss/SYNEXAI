@@ -1,5 +1,5 @@
 import type { KeyValueDriver } from '../driver'
-import { StoredValue, parseArray, type IssueReporter, type Migration } from '../collection'
+import { PASSTHROUGH_MIGRATIONS, StoredValue, parseArray, type IssueReporter, type Migration } from '../collection'
 import { STORAGE_KEYS } from '../keys'
 import { isProject } from '../validators'
 import { NotFoundError, ValidationError, type ProjectRepository } from './types'
@@ -22,7 +22,10 @@ function required(value: string | undefined, max: number, label: string): string
  * adds `organization` / `analyst`. Unknown fields are ignored, and anything
  * that is not a list of objects is left for the validator to reject.
  */
+// Spread the passthrough table first so a version bump cannot leave this store
+// without a step — a missing step quarantines otherwise-valid data.
 export const PROJECT_MIGRATIONS: Record<number, Migration> = {
+  ...PASSTHROUGH_MIGRATIONS,
   1: (data) => {
     if (!Array.isArray(data)) return data
     return data.map((item) => {

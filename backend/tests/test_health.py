@@ -10,7 +10,9 @@ def test_health_ok(client):
     assert body["status"] == "ok"
     assert body["service"] == "SYNEX AI"
     assert body["ai"]["provider"] == "gemini"
-    assert set(body["ai"]) == {"provider", "supported", "configured"}
+    assert body["ai"]["model"]  # the model comes from configuration and is reported
+    assert body["ai"]["configured"] is False  # no key in the test environment
+    assert set(body["ai"]) == {"provider", "supported", "configured", "model", "timeoutSeconds"}
 
 
 def test_health_never_exposes_api_key(monkeypatch):

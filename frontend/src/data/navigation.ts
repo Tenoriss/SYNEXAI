@@ -41,7 +41,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Analysis',
     items: [
-      { label: 'System Overview', path: '/system-overview', icon: Layers, phase: 5, description: 'Purpose, actors, stakeholders, inputs, outputs and processes extracted from your system description.' },
+      { label: 'System Overview', path: '/system-overview', icon: Layers, phase: 5, description: 'Workspace-wide roll-up. The per-project system understanding is already available: open a project, then its System Information → Analyze System.' },
       { label: 'PIECES Analysis', path: '/pieces', icon: BarChart3, phase: 6, description: 'Performance, Information, Economy, Control, Efficiency and Service analysis with evidence status.' },
       { label: 'Requirements', path: '/requirements', icon: ListChecks, phase: 7, description: 'Functional and non-functional requirements traced to evidence.' },
       { label: 'Processes', path: '/processes', icon: Workflow, phase: 8, description: 'Current versus proposed processes, problems and improvements.' },
@@ -69,7 +69,7 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
 
 /** Extra, non-sidebar routes. */
 export const EXTRA_ROUTES: NavItem[] = [
-  { label: 'Create Analysis', path: '/analysis/new', icon: ClipboardList, phase: 3, description: 'Describe a system to start a structured analysis.' },
+  { label: 'Create Analysis', path: '/analysis/new', icon: ClipboardList, phase: 3, description: 'Not a separate screen any more: create a project, record its System Information, then run Analyze System.' },
 ]
 
 export function findNavItem(pathname: string): NavItem | undefined {

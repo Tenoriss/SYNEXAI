@@ -8,15 +8,18 @@ import { ProjectsPage } from '@/pages/projects/ProjectsPage'
 import { NewProjectPage } from '@/pages/projects/NewProjectPage'
 import { ProjectOverviewPage } from '@/pages/projects/ProjectOverviewPage'
 import { SystemInformationPage } from '@/pages/projects/SystemInformationPage'
+import { SystemUnderstandingPage } from '@/pages/projects/SystemUnderstandingPage'
 import { EXTRA_ROUTES, NAV_ITEMS } from '@/data/navigation'
 
-/** Screens delivered by Phase 2 and Phase 3. */
+/** Screens delivered by Phase 2, Phase 3 and Phase 4. */
 const PROJECT_ROUTES = [
   { path: '/projects', element: <ProjectsPage /> },
   { path: '/projects/new', element: <NewProjectPage /> },
   { path: '/projects/:projectId', element: <ProjectOverviewPage /> },
   // Phase 3 · the System Information workspace, reached from a project (spec §7).
   { path: '/projects/:projectId/system', element: <SystemInformationPage /> },
+  // Phase 4 · the AI result view for one project.
+  { path: '/projects/:projectId/analysis', element: <SystemUnderstandingPage /> },
 ]
 
 const IMPLEMENTED: Record<string, React.ReactElement> = {

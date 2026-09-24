@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useReducedMotion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Fingerprint, Save, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bot, Fingerprint, Save, TriangleAlert } from 'lucide-react'
 import { Badge, Button, Card, Dialog, EmptyState, PageHeader, Skeleton } from '@/components/ui'
 import { CompletenessIndicator } from '@/components/systemInformation/CompletenessIndicator'
 import { SaveStatus } from '@/components/systemInformation/SaveStatus'
@@ -10,6 +10,7 @@ import { SystemInformationForm } from '@/components/systemInformation/SystemInfo
 import type { SiController } from '@/components/systemInformation/shared'
 import { STORAGE_KEYS, storageService } from '@/storage'
 import { projectPath } from '@/features/projects/paths'
+import { analysisPath } from '@/features/analysis/paths'
 import { emptyContent, type Prefill } from '@/features/systemInformation/draft'
 import { completedSections, SI_STATUS_LABEL } from '@/features/systemInformation/completeness'
 import { MISSING_FIELD_SECTION } from '@/features/systemInformation/validation'
@@ -81,6 +82,21 @@ export function SystemInformationPage() {
     await draft.saveDraft()
     setBusy(false)
   }, [draft])
+
+  /**
+   * Analyze System: persist whatever the analyst typed first, then open the
+   * result view with a run requested. Nothing is sent while the input is only in
+   * the form, and a blocked pre-flight on the next screen explains why.
+   */
+  const handleAnalyze = useCallback(async () => {
+    if (!projectId) return
+    setBusy(true)
+    let ok = true
+    if (draft.dirty) ok = await draft.saveDraft()
+    setBusy(false)
+    if (!ok) return
+    navigate(`${analysisPath(projectId)}?run=1`)
+  }, [draft, navigate, projectId])
 
   const handleContinue = useCallback(async () => {
     setBusy(true)
@@ -161,6 +177,14 @@ export function SystemInformationPage() {
             />
             <Button variant="secondary" leftIcon={<Save size={16} aria-hidden />} disabled={busy} onClick={() => void handleSaveDraft()}>
               Save Draft
+            </Button>
+            <Button
+              variant="secondary"
+              leftIcon={<Bot size={16} aria-hidden />}
+              disabled={busy || !draft.ready}
+              onClick={() => void handleAnalyze()}
+            >
+              Analyze System
             </Button>
             <Button leftIcon={<ArrowRight size={16} aria-hidden />} loading={busy} onClick={() => void handleContinue()}>
               Save &amp; Continue

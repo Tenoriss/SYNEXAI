@@ -6,21 +6,69 @@ import { SCHEMA_VERSION } from './collection'
 import { NotFoundError, ValidationError } from './repositories/types'
 import { DATA_SAFE_NOTE, describeStorageError } from './errors'
 import type { NewProjectInput } from '@/types/project'
-import type { SystemInput } from '@/types/analysis'
+import type { AnalysisMeta, NewAnalysisRecord, SystemUnderstanding } from '@/types/analysis'
+import type { SystemInformationContent } from '@/types/systemInformation'
 
-const emptyInput = (overrides: Partial<SystemInput> = {}): SystemInput => ({
+/** The Phase 3 content shape, as the analysis snapshot stores it. */
+const emptyInput = (overrides: Partial<SystemInformationContent> = {}): SystemInformationContent => ({
   systemName: 'Test System',
-  domain: '',
   systemType: '',
-  description: '',
-  stakeholders: '',
-  actors: '',
-  users: '',
-  currentProcess: '',
-  existingProblems: '',
-  currentTechnology: '',
-  importantData: '',
-  additionalContext: '',
+  systemPurpose: '',
+  systemDescription: '',
+  organization: '',
+  stakeholders: [],
+  users: [],
+  currentWorkflow: '',
+  processTrigger: '',
+  processInput: '',
+  processMainProcessing: '',
+  processOutput: '',
+  processDecisionPoints: '',
+  problems: [],
+  technologies: [],
+  dataEntities: [],
+  businessRules: [],
+  objectives: [],
+  constraints: '',
+  additionalNotes: '',
+  ...overrides,
+})
+
+const understanding = (overrides: Partial<SystemUnderstanding> = {}): SystemUnderstanding => ({
+  summary: 'A system that records loans for four branches.',
+  purpose: 'Replace the paper card process.',
+  systemScope: '',
+  actors: ['Desk clerk'],
+  stakeholders: ['Head librarian'],
+  processes: [],
+  inputs: [],
+  outputs: [],
+  dataEntities: ['Loan'],
+  technologies: [],
+  businessRules: [],
+  assumptions: [],
+  missingInformation: ['Which staff approve a lost card?'],
+  ...overrides,
+})
+
+const meta = (overrides: Partial<AnalysisMeta> = {}): AnalysisMeta => ({
+  provider: 'gemini',
+  model: 'gemini-test',
+  generatedAt: '2026-09-24T00:00:00.000Z',
+  durationMs: 4321,
+  attempts: 1,
+  promptChars: 1180,
+  responseChars: 640,
+  schemaVersion: 3,
+  ...overrides,
+})
+
+const analysisRecord = (projectId: string, overrides: Partial<NewAnalysisRecord> = {}): NewAnalysisRecord => ({
+  projectId,
+  sourceInformationUpdatedAt: '2026-09-23T00:00:00.000Z',
+  input: emptyInput(),
+  result: understanding(),
+  meta: meta(),
   ...overrides,
 })
 
@@ -233,60 +281,132 @@ describe('schema migration', () => {
   })
 })
 
-describe('analysis history', () => {
-  it('appends versions without overwriting and lists newest first', async () => {
-    const p = await storage.createProject(input('Hospital'))
-    const v1 = await storage.saveAnalysis({ projectId: p.id, inputSnapshot: emptyInput(), analysisResult: { n: 1 } })
-    await new Promise((r) => setTimeout(r, 2))
-    const v2 = await storage.saveAnalysis({ projectId: p.id, inputSnapshot: emptyInput(), analysisResult: { n: 2 } })
+describe('analysis results', () => {
+  it('appends records without overwriting and lists newest first', async () => {
+    const project = await storage.createProject(input('Hospital'))
+    const first = await storage.saveAnalysis(analysisRecord(project.id, { meta: meta({ attempts: 1 }) }))
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    const second = await storage.saveAnalysis(analysisRecord(project.id, { result: understanding({ summary: 'Newer' }) }))
 
-    const history = await storage.getAnalysisHistory(p.id)
-    expect(history.map((v) => v.id)).toEqual([v2.id, v1.id])
-    expect((await storage.getLatestAnalysis(p.id))?.id).toBe(v2.id)
-    expect(await storage.getAnalysis(v1.id)).toEqual(v1)
+    const history = await storage.getAnalysisHistory(project.id)
+    expect(history.map((record) => record.id)).toEqual([second.id, first.id])
+    expect((await storage.getLatestAnalysis(project.id))?.id).toBe(second.id)
+    expect(await storage.getAnalysis(first.id)).toEqual(first)
   })
 
-  it('snapshots input so later mutation does not change history', async () => {
-    const p = await storage.createProject(input('Bank'))
-    const input_ = emptyInput({ description: 'original' })
-    const v = await storage.saveAnalysis({ projectId: p.id, inputSnapshot: input_, analysisResult: {} })
-    input_.description = 'mutated'
-    expect((await storage.getAnalysis(v.id))?.inputSnapshot.description).toBe('original')
+  it('persists the whole validated result plus run metadata', async () => {
+    const project = await storage.createProject(input('Hospital'))
+    const record = await storage.saveAnalysis(analysisRecord(project.id))
+
+    expect(record.type).toBe('system-understanding')
+    expect(record.createdAt).toBe(record.updatedAt)
+    expect(record.sourceInformationUpdatedAt).toBe('2026-09-23T00:00:00.000Z')
+    expect(record.meta).toEqual(meta())
+    const stored = await storage.getAnalysis(record.id)
+    expect(stored?.result).toEqual(understanding())
   })
 
-  it('rejects analyses for unknown projects and invalid snapshots', async () => {
+  it('snapshots the input so a later autosave does not change history', async () => {
+    const project = await storage.createProject(input('Bank'))
+    const source = emptyInput({ systemPurpose: 'original' })
+    const record = await storage.saveAnalysis(analysisRecord(project.id, { input: source }))
+    source.systemPurpose = 'mutated'
+
+    expect((await storage.getAnalysis(record.id))?.input.systemPurpose).toBe('original')
+    // and the project's own system information is a separate record, untouched here
+    expect(await storage.getSystemInformation(project.id)).toBeNull()
+  })
+
+  it('rejects an analysis whose result is not a validated object', async () => {
+    const project = await storage.createProject(input('X'))
+    await expect(storage.saveAnalysis(analysisRecord('nope'))).rejects.toThrow(/does not exist/)
     await expect(
-      storage.saveAnalysis({ projectId: 'nope', inputSnapshot: emptyInput(), analysisResult: {} }),
-    ).rejects.toThrow()
-    const p = await storage.createProject(input('X'))
-    await expect(
-      // @ts-expect-error invalid snapshot on purpose
-      storage.saveAnalysis({ projectId: p.id, inputSnapshot: { systemName: 1 }, analysisResult: {} }),
+      // @ts-expect-error raw model text must never be stored as analysis
+      storage.saveAnalysis(analysisRecord(project.id, { result: 'The system seems fine' })),
     ).rejects.toBeInstanceOf(ValidationError)
+    await expect(
+      storage.saveAnalysis(analysisRecord(project.id, { result: understanding({ summary: 42 as unknown as string }) })),
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('drops a stored result that no longer validates, keeping the rest', async () => {
+    const project = await storage.createProject(input('X'))
+    const good = await storage.saveAnalysis(analysisRecord(project.id))
+    driver.setItem(
+      STORAGE_KEYS.analysisVersions,
+      JSON.stringify({
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: '',
+        data: [
+          good,
+          { ...good, id: 'tampered', result: { summary: 'hand written, unvalidated' } },
+        ],
+      }),
+    )
+    const reloaded = new StorageService(driver)
+    const history = await reloaded.getAnalysisHistory(project.id)
+
+    expect(history.map((record) => record.id)).toEqual([good.id])
+    expect(reloaded.getIssues().some((issue) => issue.kind === 'invalid_items')).toBe(true)
+  })
+
+  it('upgrades legacy versions saved under schema v2', async () => {
+    driver.setItem(
+      STORAGE_KEYS.analysisVersions,
+      JSON.stringify({
+        schemaVersion: 2,
+        updatedAt: '',
+        data: [
+          {
+            id: 'legacy-1',
+            projectId: 'project-1',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            inputSnapshot: { systemName: 'Old', description: 'free text', stakeholders: '' },
+            analysisResult: { summary: 'legacy summary', purpose: 'legacy purpose', actors: ['Clerk'] },
+          },
+        ],
+      }),
+    )
+    const upgraded = new StorageService(driver)
+    const [record] = await upgraded.getAnalysisHistory('project-1')
+
+    expect(record).toMatchObject({
+      id: 'legacy-1',
+      type: 'system-understanding',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      sourceInformationUpdatedAt: null,
+      result: { summary: 'legacy summary', purpose: 'legacy purpose', actors: ['Clerk'], processes: [] },
+      meta: { provider: 'unknown', attempts: 1 },
+    })
+    expect(record.input.systemName).toBe('Old')
+    // the migrated shape is written back once, so a second load does not re-migrate
+    const stored = JSON.parse(driver.getItem(STORAGE_KEYS.analysisVersions)!)
+    expect(stored.schemaVersion).toBe(SCHEMA_VERSION)
   })
 
   it('deleting a project cascades to its analyses only', async () => {
     const a = await storage.createProject(input('A'))
     const b = await storage.createProject(input('B'))
-    await storage.saveAnalysis({ projectId: a.id, inputSnapshot: emptyInput(), analysisResult: {} })
-    await storage.saveAnalysis({ projectId: b.id, inputSnapshot: emptyInput(), analysisResult: {} })
+    await storage.saveAnalysis(analysisRecord(a.id))
+    await storage.saveAnalysis(analysisRecord(b.id))
     await storage.deleteProject(a.id)
+
     expect(await storage.getAnalysisHistory(a.id)).toEqual([])
     expect(await storage.getAnalysisHistory(b.id)).toHaveLength(1)
   })
 
-  it('deletes a single analysis version', async () => {
-    const p = await storage.createProject(input('A'))
-    const v = await storage.saveAnalysis({ projectId: p.id, inputSnapshot: emptyInput(), analysisResult: {} })
-    await storage.deleteAnalysis(v.id)
-    expect(await storage.getAnalysis(v.id)).toBeNull()
+  it('deletes a single analysis record', async () => {
+    const project = await storage.createProject(input('A'))
+    const record = await storage.saveAnalysis(analysisRecord(project.id))
+    await storage.deleteAnalysis(record.id)
+    expect(await storage.getAnalysis(record.id)).toBeNull()
   })
 
   it('archiving keeps analysis history intact', async () => {
-    const p = await storage.createProject(input('A'))
-    await storage.saveAnalysis({ projectId: p.id, inputSnapshot: emptyInput(), analysisResult: {} })
-    await storage.archiveProject(p.id)
-    expect(await storage.getAnalysisHistory(p.id)).toHaveLength(1)
+    const project = await storage.createProject(input('A'))
+    await storage.saveAnalysis(analysisRecord(project.id))
+    await storage.archiveProject(project.id)
+    expect(await storage.getAnalysisHistory(project.id)).toHaveLength(1)
   })
 })
 
@@ -354,7 +474,7 @@ describe('settings and maintenance', () => {
 
   it('reports stats', async () => {
     const p = await storage.createProject(input('A'))
-    await storage.saveAnalysis({ projectId: p.id, inputSnapshot: emptyInput(), analysisResult: {} })
+    await storage.saveAnalysis(analysisRecord(p.id))
     const stats = await storage.getStats()
     expect(stats).toMatchObject({ persistent: false, projects: 1, analysisVersions: 1, corruptBackups: 0 })
     expect(stats.approxBytes).toBeGreaterThan(0)

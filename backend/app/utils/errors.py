@@ -35,15 +35,27 @@ class AppError(Exception):
             self.status_code = status_code
 
 
-def _error_body(code: str, message: str, details: list[dict] | None = None) -> dict:
+def _error_body(code: str, message: str, details: list[dict] | dict | None = None) -> dict:
     body: dict = {"code": code, "message": message}
     if details:
         body["details"] = details
-    return {"error": body}
+    # Analysis endpoints document { success, data | error }; stating it on errors too
+    # keeps one shape for clients instead of "either key may be missing".
+    return {"success": False, "error": body}
+
+
+def _details_of(exc: AppError) -> list[dict] | dict | None:
+    """Structured, machine-readable hints. Shaped by the raiser, never dumped raw."""
+    raw = getattr(exc, "details", None)
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    return list(raw) or None
 
 
 async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content=_error_body(exc.code, exc.message))
+    return JSONResponse(status_code=exc.status_code, content=_error_body(exc.code, exc.message, _details_of(exc)))
 
 
 async def _http_error_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:

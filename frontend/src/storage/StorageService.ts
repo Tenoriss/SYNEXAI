@@ -12,7 +12,7 @@ import type {
   SystemInformationRepository,
 } from './repositories/types'
 import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
-import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
+import type { AnalysisRecord, NewAnalysisRecord } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
 import type { SystemInformation, SystemInformationContent, SystemInformationPatch } from '@/types/systemInformation'
 
@@ -155,26 +155,31 @@ export class StorageService {
     return removed
   }
 
-  // ---- Analyses ----------------------------------------------------------
+  // ---- Analyses (Phase 4) ------------------------------------------------
+  /**
+   * Analysis results are stored per project and survive a reload. Saving never
+   * touches the project or its system information: `projectId` is only a link.
+   */
 
-  async saveAnalysis(input: NewAnalysisVersion): Promise<AnalysisVersion> {
+  async saveAnalysis(input: NewAnalysisRecord): Promise<AnalysisRecord> {
     const project = await this.projects.get(input.projectId)
     if (!project) throw new Error('Cannot save an analysis for a project that does not exist.')
-    const version = await this.analyses.create(input)
+    const record = await this.analyses.create(input)
     this.emit('analyses')
-    return version
+    return record
   }
 
-  getAnalysis(id: string): Promise<AnalysisVersion | null> {
+  getAnalysis(id: string): Promise<AnalysisRecord | null> {
     return this.analyses.get(id)
   }
 
-  getAnalysisHistory(projectId: string): Promise<AnalysisVersion[]> {
+  /** Every stored result for one project, newest first (the versioning foundation). */
+  getAnalysisHistory(projectId: string): Promise<AnalysisRecord[]> {
     return this.analyses.listByProject(projectId)
   }
 
-  async getLatestAnalysis(projectId: string): Promise<AnalysisVersion | null> {
-    return (await this.analyses.listByProject(projectId))[0] ?? null
+  getLatestAnalysis(projectId: string): Promise<AnalysisRecord | null> {
+    return this.analyses.getLatest(projectId)
   }
 
   async deleteAnalysis(id: string): Promise<void> {

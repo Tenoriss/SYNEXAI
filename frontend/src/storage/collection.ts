@@ -8,14 +8,21 @@ import { isRecord } from '@/utils/guards'
  *
  * v1 → v2 (Phase 2): projects gained `systemType`, `organization` and
  * `analyst`; the Phase 1 `domain` field was folded into `systemType`.
+ * v2 → v3 (Phase 4): an analysis record became a versioned *result* — it now
+ * carries `type`, `updatedAt`, `sourceInformationUpdatedAt`, a validated
+ * `result`, measured run `meta`, and the Phase 3 `input` snapshot instead of the
+ * Phase 1 free-text `inputSnapshot`.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** Migration from version N to N+1, operating on untrusted JSON. */
 export type Migration = (data: unknown) => unknown
 
 /** For keys whose shape did not change in a given version bump. */
-export const PASSTHROUGH_MIGRATIONS: Record<number, Migration> = { 1: (data) => data }
+export const PASSTHROUGH_MIGRATIONS: Record<number, Migration> = {
+  1: (data) => data,
+  2: (data) => data,
+}
 
 /**
  * Every stored value is wrapped in an envelope so the schema can evolve safely:
