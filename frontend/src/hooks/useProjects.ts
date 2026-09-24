@@ -26,6 +26,8 @@ export function useProject(id: string | undefined) {
   const { data, loading, error, reload } = useStorageQuery<Project | null>(
     useCallback(() => (id ? storageService.getProject(id) : Promise.resolve(null)), [id]),
     ['projects'],
+    // The loader closes over `id`, so the query has to re-run when it changes.
+    [id],
   )
   return {
     project: data ?? null,

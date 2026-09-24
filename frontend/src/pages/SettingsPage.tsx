@@ -115,7 +115,7 @@ export function SettingsPage() {
         <Card className="lg:col-span-2">
           <CardHeader
             title="Local data"
-            description="Projects and analyses are stored in this browser's LocalStorage. Clearing browser data removes them."
+            description="Projects, system information and analyses are stored in this browser's LocalStorage. Clearing browser data removes them."
             icon={<Database size={18} aria-hidden />}
           />
           {stats.data ? (
@@ -125,6 +125,7 @@ export function SettingsPage() {
                 <Row label="Projects">{stats.data.projects}</Row>
               </div>
               <div className="divide-y divide-border">
+                <Row label="System information records">{stats.data.systemInformation}</Row>
                 <Row label="Analysis versions">{stats.data.analysisVersions}</Row>
                 <Row label="Approximate size">{formatBytes(stats.data.approxBytes)}</Row>
               </div>
@@ -148,7 +149,9 @@ export function SettingsPage() {
           <div className="mt-6 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-medium text-fg">Reset all local data</p>
-              <p className="text-small text-fg-secondary">Permanently deletes every project, analysis and setting.</p>
+              <p className="text-small text-fg-secondary">
+                Permanently deletes every project, its system information, every analysis and your settings.
+              </p>
             </div>
             <Button variant="destructive" leftIcon={<Trash2 size={16} aria-hidden />} onClick={() => setConfirmReset(true)}>
               Reset data
@@ -164,7 +167,8 @@ export function SettingsPage() {
         description={
           <>
             This permanently deletes{' '}
-            <Badge tone="error">{stats.data?.projects ?? 0} projects</Badge> and{' '}
+            <Badge tone="error">{stats.data?.projects ?? 0} projects</Badge>,{' '}
+            <Badge tone="error">{stats.data?.systemInformation ?? 0} system information records</Badge> and{' '}
             <Badge tone="error">{stats.data?.analysisVersions ?? 0} analysis versions</Badge> from this browser. This
             cannot be undone.
           </>

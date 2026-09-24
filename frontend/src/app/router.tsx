@@ -7,13 +7,16 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ProjectsPage } from '@/pages/projects/ProjectsPage'
 import { NewProjectPage } from '@/pages/projects/NewProjectPage'
 import { ProjectOverviewPage } from '@/pages/projects/ProjectOverviewPage'
+import { SystemInformationPage } from '@/pages/projects/SystemInformationPage'
 import { EXTRA_ROUTES, NAV_ITEMS } from '@/data/navigation'
 
-/** Screens delivered by Phase 2 (spec §18). */
+/** Screens delivered by Phase 2 and Phase 3. */
 const PROJECT_ROUTES = [
   { path: '/projects', element: <ProjectsPage /> },
   { path: '/projects/new', element: <NewProjectPage /> },
   { path: '/projects/:projectId', element: <ProjectOverviewPage /> },
+  // Phase 3 · the System Information workspace, reached from a project (spec §7).
+  { path: '/projects/:projectId/system', element: <SystemInformationPage /> },
 ]
 
 const IMPLEMENTED: Record<string, React.ReactElement> = {

@@ -4,8 +4,9 @@
 and improve *any* information system (academic, inventory, hospital, e-commerce, banking, …) using
 structured methodology (PIECES, requirements, process analysis, diagrams) with AI as the analysis engine.
 
-> **Status:** Phase 2 — Project management. Projects can be created, searched, filtered, edited, archived
-> and deleted, and they persist in LocalStorage across reloads. The backend still serves health only;
+> **Status:** Phase 3 — System information input. Projects can be created, searched, filtered, edited, archived and
+> deleted, and each project can now hold the structured system information an analysis needs: nine sections, saved
+> locally as you type, with completeness derived from what is really recorded. The backend still serves health only;
 > Gemini analysis arrives in Phase 4 and PIECES/requirements/diagrams in later phases.
 
 ## Architecture
@@ -56,7 +57,7 @@ Vite proxies `/api` to `http://127.0.0.1:8000`. Override with `API_PROXY_TARGET=
 
 ```bash
 cd backend && ./venv/bin/python -m pytest      # API tests (9)
-cd frontend && npm test                         # storage + project logic tests (54)
+cd frontend && npm test                         # storage, project + system-information tests (106)
 cd frontend && npm run build                    # type-check + production build
 ```
 
@@ -79,7 +80,8 @@ cd frontend && npm run build                    # type-check + production build
 | `/`                   | Dashboard — counts and recent projects read from real stored data  |
 | `/projects`           | Project list: search, status filter, sort, row actions              |
 | `/projects/new`       | Create Project form                                                 |
-| `/projects/:projectId` | Project overview: metadata, status, archive/duplicate/delete, module placeholders |
+| `/projects/:projectId` | Project overview: metadata, status, archive/duplicate/delete, module placeholders, system-information status |
+| `/projects/:projectId/system` | System Information workspace (Phase 3, documented below)   |
 
 Layering (no component touches `localStorage` directly):
 
@@ -102,6 +104,40 @@ UI (pages, components/projects)
 - Empty, loading, error, corrupted-data and "Project not found" states are all real UI states; no demo projects,
   scores or progress percentages exist anywhere.
 
+## System information (Phase 3)
+
+The analysis input: for every project the analyst records what the system *is* — purpose, people, current process,
+problems, technology, data, rules, objectives, constraints — and SYNEX AI stores exactly that. No AI runs in this
+phase; nothing is generated, suggested or completed on the analyst's behalf.
+
+```text
+UI (pages/projects/SystemInformationPage, components/systemInformation/*)
+  → hooks/useSystemInformation.ts                     draft, dirty tracking, debounced auto-save, save & continue
+    → features/systemInformation/*                     sections, completeness rules, validation, list operations
+      → StorageService                                 get / save / update / delete + delete cascade
+        → LocalStorageSystemInformationRepository      one record per project, normalised on read and on write
+          → LocalStorageDriver                         synex_system_information
+```
+
+- `SystemInformation`: `systemName`, `systemType`, `systemPurpose`, `systemDescription`, `organization`,
+  `stakeholders[]`, `users[]`, `currentWorkflow` (+ optional trigger / input / main processing / output / decision
+  points), `problems[]`, `technologies[]`, `dataEntities[]`, `businessRules[]`, `objectives[]`, `constraints`,
+  `additionalNotes`, `createdAt`, `updatedAt`. Each list entry carries its own `id`. The shape is plain JSON so the
+  same record can be posted to the backend unchanged in Phase 4/5.
+- Nine sections in separate components (overview · stakeholders & users · current process · problems · technology ·
+  data · business rules · objectives & constraints · notes), reachable from a sticky section rail that turns into a
+  scrollable row on small screens.
+- **Save Draft** keeps the analyst on the page and answers "Changes saved"; **Save & Continue** validates first and
+  returns to the Project Overview. Auto-save is debounced and silent; a failed save says so instead of pretending.
+- Only `System Name`, `System Type` and `System Purpose` are required, validated inline with `aria-invalid` +
+  `role="alert"` and a focus move to the first cause. A half-documented system still saves as a draft.
+- Completeness is derived from stored content — "N of 9 sections completed", and *Not started / In progress /
+  Complete* on the overview card and the dashboard, all from real counts (`0 stakeholders`, `Not provided`, …).
+- Problems are recorded as observations: no severity and no PIECES category, because those are analysis outputs.
+- Leaving with unsaved typing warns (Stay / Leave) after trying to flush; closing the tab uses the browser's own
+  guard. Corrupted or malformed stored values are skipped or moved to `synex_corrupt_*` — one bad record never
+  crashes the workspace, and deleting a project deletes its system information with it.
+
 ## Project structure
 
 ```text
@@ -118,10 +154,13 @@ frontend/
   src/
     app/               App, router, theme provider, error boundary
     layouts/           AppLayout (sidebar + header + content)
-    components/        ui/ primitives, layout/ (Sidebar, Header), projects/ (form, table, cards, dialogs)
-    pages/             Dashboard, Settings, projects/ (list, new, overview), placeholders for later phases
-    features/          projects/ — pure validation, search/filter/sort logic
-    hooks/             useStorageQuery, useProjects, useProject, useBreadcrumb, useBackendHealth, useTheme, …
+    components/        ui/ primitives, layout/ (Sidebar, Header), projects/ (form, table, cards, dialogs),
+                       systemInformation/ (form, section cards, dynamic lists, save status, sections/)
+    pages/             Dashboard, Settings, projects/ (list, new, overview, system), placeholders for later phases
+    features/          projects/ — validation, search/filter/sort; systemInformation/ — sections, completeness,
+                       validation, draft list operations (all pure and unit-tested)
+    hooks/             useStorageQuery, useProjects, useProject, useSystemInformation, useActiveSection,
+                       useNavigationGuard, useBreadcrumb, useBackendHealth, useTheme, …
     services/          ApiService
     storage/           StorageService, driver, versioned collections, repositories
     types/ utils/ data/ styles/
@@ -130,7 +169,7 @@ Design.md              Design system reference
 
 ## Local data
 
-Keys: `synex_projects`, `synex_analysis_versions`, `synex_settings`. Each value is wrapped in a versioned
+Keys: `synex_projects`, `synex_system_information`, `synex_analysis_versions`, `synex_settings`. Each value is wrapped in a versioned
 envelope `{ schemaVersion, updatedAt, data }`. Invalid records are skipped, unreadable values are moved to
 `synex_corrupt_*` (never silently deleted), and data from a newer schema is never overwritten.
 **Settings → Local data → Reset data** removes every `synex_*` key.
@@ -142,6 +181,6 @@ forward instead of being discarded.
 
 ## Roadmap
 
-1. ✅ Foundation · 2. ✅ Project management · 3. System input · 4. Gemini AI · 5. System understanding ·
+1. ✅ Foundation · 2. ✅ Project management · 3. ✅ System information input · 4. Gemini AI · 5. System understanding ·
 6. PIECES / findings / recommendations · 7. Requirements · 8. Process analysis · 9. Diagrams ·
 10. Report & PDF · 11. Polish

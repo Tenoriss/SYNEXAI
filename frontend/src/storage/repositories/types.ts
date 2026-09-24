@@ -1,6 +1,11 @@
 import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
 import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
+import type {
+  SystemInformation,
+  SystemInformationContent,
+  SystemInformationPatch,
+} from '@/types/systemInformation'
 
 /*
  * Repository contracts. Business logic depends ONLY on these interfaces.
@@ -22,6 +27,21 @@ export interface ProjectRepository {
   restore(id: string): Promise<Project>
   duplicate(id: string): Promise<Project>
   delete(id: string): Promise<void>
+}
+
+/**
+ * System information is one record per project (Phase 3). `save` upserts the
+ * whole editable content; `update` merges a partial patch. Deleting is
+ * idempotent because the workspace auto-saves and may never have written at all.
+ */
+export interface SystemInformationRepository {
+  list(): Promise<SystemInformation[]>
+  get(projectId: string): Promise<SystemInformation | null>
+  save(projectId: string, content: SystemInformationContent): Promise<SystemInformation>
+  update(projectId: string, patch: SystemInformationPatch): Promise<SystemInformation>
+  delete(projectId: string): Promise<boolean>
+  deleteByProject(projectId: string): Promise<number>
+  countAll(): Promise<number>
 }
 
 export interface AnalysisRepository {

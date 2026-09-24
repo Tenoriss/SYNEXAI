@@ -4,17 +4,25 @@ import { CORRUPT_BACKUP_PREFIX, STORAGE_KEYS, STORAGE_PREFIX } from './keys'
 import { LocalStorageProjectRepository } from './repositories/localStorageProjectRepository'
 import { LocalStorageAnalysisRepository } from './repositories/localStorageAnalysisRepository'
 import { LocalStorageSettingsRepository } from './repositories/localStorageSettingsRepository'
-import type { AnalysisRepository, ProjectRepository, SettingsRepository } from './repositories/types'
+import { LocalStorageSystemInformationRepository } from './repositories/systemInformationRepository'
+import type {
+  AnalysisRepository,
+  ProjectRepository,
+  SettingsRepository,
+  SystemInformationRepository,
+} from './repositories/types'
 import type { NewProjectInput, Project, ProjectStatus, ProjectUpdate } from '@/types/project'
 import type { AnalysisVersion, NewAnalysisVersion } from '@/types/analysis'
 import type { AppSettings } from '@/types/settings'
+import type { SystemInformation, SystemInformationContent, SystemInformationPatch } from '@/types/systemInformation'
 
-export type StorageChange = 'projects' | 'analyses' | 'settings' | 'all'
+export type StorageChange = 'projects' | 'system' | 'analyses' | 'settings' | 'all'
 type Listener = (change: StorageChange) => void
 
 export interface StorageStats {
   persistent: boolean
   projects: number
+  systemInformation: number
   analysisVersions: number
   /** Approximate bytes used by `synex_*` keys (UTF-16 → 2 bytes/char). */
   approxBytes: number
@@ -27,10 +35,11 @@ export interface StorageStats {
  * It composes repositories behind interfaces, so swapping LocalStorage for a
  * PostgreSQL-backed API later only requires new repository implementations.
  * It also coordinates cross-entity rules (e.g. deleting a project deletes its
- * analysis history) and notifies subscribers when data changes.
+ * system information and analysis history) and notifies subscribers when data changes.
  */
 export class StorageService {
   readonly projects: ProjectRepository
+  readonly systemInformation: SystemInformationRepository
   readonly analyses: AnalysisRepository
   readonly settings: SettingsRepository & { getSync?: () => AppSettings }
 
@@ -45,6 +54,7 @@ export class StorageService {
       console.warn(`[SYNEX storage] ${issue.key}: ${issue.message}`)
     }
     this.projects = new LocalStorageProjectRepository(driver, report)
+    this.systemInformation = new LocalStorageSystemInformationRepository(driver, report)
     this.analyses = new LocalStorageAnalysisRepository(driver, report)
     this.settings = new LocalStorageSettingsRepository(driver, report)
 
@@ -105,11 +115,44 @@ export class StorageService {
     return project
   }
 
-  /** Deletes the project and all of its analysis versions. */
+  /** Deletes the project, its system information and its analysis versions. */
   async deleteProject(id: string): Promise<void> {
     await this.projects.delete(id)
+    await this.systemInformation.deleteByProject(id)
     await this.analyses.deleteByProject(id)
     this.emit('all')
+  }
+
+  // ---- System information (Phase 3) --------------------------------------
+
+  getSystemInformation(projectId: string): Promise<SystemInformation | null> {
+    return this.systemInformation.get(projectId)
+  }
+
+  listSystemInformation(): Promise<SystemInformation[]> {
+    return this.systemInformation.list()
+  }
+
+  /** Upserts the whole editable content of a project's system information. */
+  async saveSystemInformation(projectId: string, content: SystemInformationContent): Promise<SystemInformation> {
+    const record = await this.systemInformation.save(projectId, content)
+    this.emit('system')
+    return record
+  }
+
+  async updateSystemInformation(
+    projectId: string,
+    patch: SystemInformationPatch,
+  ): Promise<SystemInformation> {
+    const record = await this.systemInformation.update(projectId, patch)
+    this.emit('system')
+    return record
+  }
+
+  async deleteSystemInformation(projectId: string): Promise<boolean> {
+    const removed = await this.systemInformation.delete(projectId)
+    if (removed) this.emit('system')
+    return removed
   }
 
   // ---- Analyses ----------------------------------------------------------
@@ -168,6 +211,7 @@ export class StorageService {
     return {
       persistent: this.driver.persistent,
       projects: (await this.projects.list()).length,
+      systemInformation: await this.systemInformation.countAll(),
       analysisVersions: await this.analyses.countAll(),
       approxBytes,
       corruptBackups: keys.filter((k) => k.startsWith(CORRUPT_BACKUP_PREFIX)).length,
@@ -199,6 +243,8 @@ function keyToChange(key: string | null): StorageChange {
       return 'projects'
     case STORAGE_KEYS.analysisVersions:
       return 'analyses'
+    case STORAGE_KEYS.systemInformation:
+      return 'system'
     case STORAGE_KEYS.settings:
       return 'settings'
     default:

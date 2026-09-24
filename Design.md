@@ -95,6 +95,29 @@ Reuse and extend these before creating new components.
 - **Placeholders stay honest:** unimplemented modules are non-interactive list items labelled
   "Phase N", never disabled buttons that pretend to work.
 
+### Analysis-input patterns (Phase 3)
+
+- **Nine cards, never one giant form:** `SystemInformationForm` maps the documented sections onto `SectionCard`s and
+  each section owns its own component under `components/systemInformation/sections/`. The page composes; it does not
+  contain fields.
+- **Numbering and anchors:** every section is a `<section id="si-section-<id>" aria-labelledby>` with a visible
+  `N.` prefix, so `SectionNavigation` can jump to it and `useActiveSection` can show where the analyst is.
+- **Sticky rail, scrollable row:** the section list sits beside the form on `lg` (`position: sticky`) and becomes a
+  horizontally scrollable chip row below it. Each item states its own state in words — "information provided" /
+  "not filled in yet" — never colour alone.
+- **Dynamic entry lists:** `DynamicEntryList` adds, edits and removes rows with unique accessible names
+  ("Remove stakeholder 1 “Head librarian”"). A blank row that is still being typed is kept, but it never counts as
+  information anywhere.
+- **Auto-save you can see:** debounced 1.2s with a `role="status"` line that reads *Unsaved changes → Saving… → Saved
+  just now*, a failure state that names the reason, and a flush on in-app navigation so the unsaved-changes dialog
+  only appears when a save genuinely could not happen.
+- **Completeness is not analysis progress:** `CompletenessIndicator` and the overview card count sections holding real
+  content ("4 of 9 sections completed"). No percentage, no AI status, no implied progress.
+- **Nothing invented:** the only value the app ever fills in is a copy of the analyst's own project field
+  (system type, organization). Everything else starts empty, and example text lives in placeholders and hints only.
+- **Mobile stays single column:** both grid children carry `min-w-0`, so the scrollable chip row can never widen the
+  document — the reason the class is there, kept so it is not removed by mistake.
+
 ## Motion
 
 Framer Motion, sparingly: 120ms (hover) · 200ms (page/modal/toast) · 300ms (large). Easing `cubic-bezier(0.2,0,0,1)`.

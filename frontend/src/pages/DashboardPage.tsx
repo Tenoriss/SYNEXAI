@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowRight,
   CheckCircle2,
+  ClipboardList,
   FolderKanban,
   FolderOpen,
   Plus,
@@ -14,7 +15,10 @@ import {
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Skeleton } from '@/components/ui'
 import { ProjectStatusBadge } from '@/components/projects/ProjectStatusBadge'
 import { countProjects, mostRecentlyUpdated } from '@/features/projects/query'
+import { SI_STATUS_LABEL } from '@/features/systemInformation/completeness'
+import { systemInformationPath } from '@/features/systemInformation/paths'
 import { useStorageQuery } from '@/hooks/useStorage'
+import { useSystemInformationSummaries } from '@/hooks/useSystemInformation'
 import { storageService } from '@/storage'
 import { formatRelativeTime } from '@/utils/format'
 import { PROJECT_STATUSES, type Project } from '@/types/project'
@@ -75,7 +79,11 @@ export function DashboardPage() {
   )
 
   const projects = data?.projects
+  const { summaries } = useSystemInformationSummaries()
   const byStatus = countProjects(projects ?? [])
+  // Real records only: a project counts as documented once anything was saved (spec §21).
+  const documented = (projects ?? []).filter((p) => (summaries[p.id]?.sectionsProvided ?? 0) > 0).length
+  const awaiting = (projects?.length ?? 0) - documented
   const recent = projects ? mostRecentlyUpdated(projects, 5) : []
   const hasProjects = (projects?.length ?? 0) > 0
 
@@ -206,6 +214,55 @@ export function DashboardPage() {
         </Card>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader
+              title="System information"
+              icon={<ClipboardList size={18} aria-hidden />}
+              description="Structured input each project has to record before any analysis."
+              action={<Badge tone={documented > 0 ? 'info' : 'neutral'}>{documented} of {projects?.length ?? 0} documented</Badge>}
+            />
+            {loading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : hasProjects ? (
+              <>
+                <ul className="space-y-2.5">
+                  {recent.map((p) => {
+                    const summary = summaries[p.id]
+                    const status = summary?.status ?? 'not-started'
+                    return (
+                      <li key={p.id} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            to={systemInformationPath(p.id)}
+                            className="block truncate rounded-sm text-small font-medium text-fg hover:text-primary hover:underline"
+                          >
+                            {p.name}
+                          </Link>
+                          <p className="text-caption text-fg-muted tabular-nums">
+                            {summary
+                              ? `${summary.sectionsProvided} of ${summary.sectionCount} sections completed`
+                              : `0 of 9 sections completed`}
+                          </p>
+                        </div>
+                        <Badge tone={status === 'complete' ? 'success' : status === 'in-progress' ? 'info' : 'neutral'}>
+                          {SI_STATUS_LABEL[status]}
+                        </Badge>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p className="mt-4 border-t border-border pt-3 text-caption text-fg-muted">
+                  {awaiting} {awaiting === 1 ? 'project is' : 'projects are'} awaiting system information input. Counts
+                  are read from stored records for all projects in this browser, archived ones included.
+                </p>
+              </>
+            ) : (
+              <p className="text-small text-fg-secondary">
+                No projects yet — system information is recorded per project, so there is nothing to count.
+              </p>
+            )}
+          </Card>
+
           <Card>
             <CardHeader
               title="Status breakdown"

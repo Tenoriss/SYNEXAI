@@ -1,5 +1,6 @@
 import { matchPath, useLocation } from 'react-router-dom'
 import { findNavItem } from '@/data/navigation'
+import { projectPath } from '@/features/projects/paths'
 import { useProject } from './useProjects'
 
 export interface Crumb {
@@ -11,7 +12,9 @@ export interface Crumb {
 /** Breadcrumb for the header, including the open project's name (spec §18). */
 export function useBreadcrumb(): Crumb[] {
   const { pathname } = useLocation()
-  const match = matchPath({ path: '/projects/:projectId', end: true }, pathname)
+  /** Nested project screens are matched first so the project stays one crumb deep. */
+  const systemMatch = matchPath({ path: '/projects/:projectId/system', end: true }, pathname)
+  const match = systemMatch ?? matchPath({ path: '/projects/:projectId', end: true }, pathname)
   const paramId = match?.params.projectId
   const projectId = paramId && paramId !== 'new' ? paramId : undefined
   const { project } = useProject(projectId)
@@ -22,6 +25,15 @@ export function useBreadcrumb(): Crumb[] {
     if (pathname === '/projects') return [{ label: 'Workspace', to: '/' }, { label: 'Projects' }]
     if (pathname === '/projects/new')
       return [{ label: 'Workspace', to: '/' }, { label: 'Projects', to: '/projects' }, { label: 'New Project' }]
+    const projectName = { label: project?.name ?? 'Project', to: projectId ? projectPath(projectId) : undefined }
+    if (systemMatch) {
+      return [
+        { label: 'Workspace', to: '/' },
+        { label: 'Projects', to: '/projects' },
+        projectId ? projectName : { label: 'Project' },
+        { label: 'System Information' },
+      ]
+    }
     return [{ label: 'Workspace', to: '/' }, { label: 'Projects', to: '/projects' }, { label: project?.name ?? 'Project' }]
   }
 

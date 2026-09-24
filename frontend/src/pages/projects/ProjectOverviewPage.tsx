@@ -5,6 +5,7 @@ import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, SelectInput, S
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
 import { EditProjectDialog } from '@/components/projects/EditProjectDialog'
 import { ProjectStatusBadge, STATUS_META } from '@/components/projects/ProjectStatusBadge'
+import { SystemInformationCard } from '@/components/projects/SystemInformationCard'
 import { PROJECT_MODULES } from '@/data/projectModules'
 import { draftToPatch } from '@/features/projects/validation'
 import { projectPath } from '@/features/projects/paths'
@@ -159,13 +160,15 @@ export function ProjectOverviewPage() {
             </div>
           </Card>
 
+          <SystemInformationCard projectId={project.id} />
+
           <Card>
             <CardHeader
               title="Analysis modules"
-              description="Each module is built in a later phase. They stay empty until then."
+              description="Each module is built in a later phase and stays empty until then. System information is the input they will read."
               icon={<CalendarClock size={18} aria-hidden />}
               action={
-                <Badge icon={<Lock size={14} aria-hidden />}>Phase 3 onwards</Badge>
+                <Badge icon={<Lock size={14} aria-hidden />}>From Phase 4</Badge>
               }
             />
             <ul className="grid gap-3 sm:grid-cols-2">
